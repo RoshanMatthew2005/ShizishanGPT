@@ -28,6 +28,13 @@ env/
 *.log
 knowledge_base_build.log
 
+# Data Files - Excluded (too large for GitHub, store locally only)
+data/pdfs/*.pdf
+data/csv/*.csv
+data/images/*
+data/knowledge_graph/*
+Data/*.pdf
+
 # Vector Store - Excluded (too large for GitHub, regenerate locally)
 models/vectorstore/
 models/trained_models/
