@@ -28,8 +28,10 @@ env/
 *.log
 knowledge_base_build.log
 
-# Vector Store (optional - uncomment if you don't want to commit the database)
-# models/vectorstore/
+# Vector Store - Excluded (too large for GitHub, regenerate locally)
+models/vectorstore/
+models/trained_models/
+models/embeddings/
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
