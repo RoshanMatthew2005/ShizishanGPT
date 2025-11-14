@@ -1,3 +1,166 @@
+```markdown
+# 🌾 ShizishanGPT — Milestone 1 & 2 Summary
+
+This repository contains a Retrieval-Augmented Knowledge (RAG) base for agricultural documents (Milestone 1) and three machine-learning models with a FastAPI interface (Milestone 2).
+
+This README summarizes what has been completed so far, exact results, where to find artifacts, and how to run or reproduce experiments locally.
+
+---
+
+## 📋 High-level summary (what's done)
+
+- Milestone 1 — Knowledge base
+  - Built a vector store from agricultural PDFs using sentence-transformers + ChromaDB. The ingester extracts, cleans, chunks, embeds, and persists document vectors.
+  - Location: `models/vectorstore/`
+
+- Milestone 2 — ML models & API
+  - Crop yield prediction (RandomForestRegressor)
+    - Script: `src/train_yield_model.py`
+    - Model: `models/trained_models/yield_model.pkl`
+    - Test R² (on held-out set): **97.38%**
+  - Weather-impact yield model (RandomForestRegressor; weather-only features)
+    - Script: `src/train_weather_model.py`
+    - Model: `models/trained_models/weather_model.pkl`
+    - Test R²: **-2.25%** (expected: poor because features were limited)
+  - Pest / Disease detection (ResNet18 transfer learning)
+    - Script: `src/train_pest_model.py`
+    - Model: `models/trained_models/pest_model.pt`
+    - Class labels: `models/trained_models/class_labels.json`
+    - Dataset: PlantVillage images (~20,638 images; 15 classes)
+    - Best validation accuracy: **99.52%** (final train acc ≈ 99.69%)
+
+- FastAPI endpoints
+  - `src/api_routes.py` provides the REST interface with endpoints:
+    - `POST /predict_yield` — predict yield from agricultural features (uses `yield_model.pkl`)
+    - `POST /analyze_weather` — weather-impact analysis (uses `weather_model.pkl`)
+    - `POST /detect_pest` — upload an image and get top predictions (uses `pest_model.pt` + `class_labels.json`)
+
+---
+
+## 📁 Important files & locations
+
+- Data
+  - Tabular dataset: `Data/csv/crop_yield.csv`
+  - Images: `Data/images/PlantVillage/PlantVillage/` (PlantVillage dataset)
+  - PDFs for knowledge base: `Data/` (31 PDFs used by Milestone 1)
+
+- Models
+  - `models/trained_models/yield_model.pkl`
+  - `models/trained_models/weather_model.pkl`
+  - `models/trained_models/pest_model.pt`
+  - `models/trained_models/class_labels.json`
+
+- Training scripts
+  - `src/train_yield_model.py`
+  - `src/train_weather_model.py`
+  - `src/train_pest_model.py`
+
+- API
+  - `src/api_routes.py` (FastAPI app)
+  - `test_api.py` (basic test harness)
+
+---
+
+## 🚀 Quick start (local)
+
+1) Create and activate venv, install deps:
+
+```powershell
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+2) Run the knowledge-base builder (Milestone 1):
+
+```powershell
+python build_knowledge_base.py
+```
+
+3) Train models (optional — prebuilt models are saved in `models/trained_models/`):
+
+```powershell
+# Train yield model
+python src/train_yield_model.py
+
+# Train weather model
+python src/train_weather_model.py
+
+# Train pest/disease detection (ResNet18)
+python src/train_pest_model.py
+```
+
+Training the pest/disease model was performed on CPU and took ~2.7 hours for 10 epochs in the current setup; expect long runtimes without a GPU.
+
+4) Start the API server:
+
+```powershell
+uvicorn src.api_routes:app --port 8000
+# (For development use --reload, but avoid --reload during heavy inference/testing for stability.)
+```
+
+5) Endpoints
+
+- POST /predict_yield — JSON body with required numeric/categorical features. Returns predicted yield and used encoders.
+- POST /analyze_weather — JSON body (weather features). Returns predicted yield (weather-only model) and correlation insights.
+- POST /detect_pest — multipart/form-data with image file. Returns top predictions and confidence scores.
+
+---
+
+## 📈 Model results (accurate reported metrics)
+
+- Crop yield model (RandomForestRegressor)
+  - Test R²: **97.38%** (excellent predictive performance on available features)
+  - Saved: `models/trained_models/yield_model.pkl`
+
+- Weather-only model (RandomForestRegressor)
+  - Test R²: **-2.25%** (poor; expected because only rainfall/fertilizer/pesticide were used)
+  - Saved: `models/trained_models/weather_model.pkl`
+
+- Pest/Disease detection (ResNet18, transfer learning)
+  - Dataset: PlantVillage (~20,638 images, 15 classes)
+  - Best validation accuracy: **99.52%**
+  - Final training accuracy: **99.69%**
+  - Saved model: `models/trained_models/pest_model.pt` (≈ 42.7 MB)
+  - Class labels: `models/trained_models/class_labels.json`
+
+Notes:
+- The weather-only model's negative R² indicates its predictions are worse than predicting the mean; it needs crop, location, and season features to be useful.
+- The pest/disease model was trained with standard image augmentations and ResNet18 pretrained weights; reported accuracies come from the training run on CPU.
+
+---
+
+## ✅ Status & next actions
+
+- Completed
+  - Knowledge base builder (Milestone 1)
+  - Crop yield model and weather model training scripts + saved artifacts
+  - Pest/disease detection training script and trained model
+  - FastAPI integration with three endpoints
+
+- Recommended next steps
+  - Add end-to-end integration tests (API + sample inputs)
+  - Add a short demo notebook showing example requests to each endpoint
+  - Containerize the app (Dockerfile) and add CI smoke tests
+  - Improve weather model by adding crop, state, and season features and re-evaluate
+
+---
+
+## Troubleshooting & tips
+
+- Path-case issues on Windows: ensure `Data/` folder casing matches references (we fixed a `.env` mismatch earlier).
+- Large training runs: prefer a GPU-enabled machine; on CPU the pest model took ~2.7 hours for 10 epochs.
+- API stability: run `uvicorn` without `--reload` when testing model endpoints to avoid worker restarts.
+
+---
+
+If you'd like, I can now:
+- Add a one-page `docs/Quickstart.md` with sample requests for teammates.
+- Commit a small demo notebook that shows ingestion → retrieval → LLM answer flow.
+
+Thank you — tell me which follow-up you'd like and I will implement it.
+
+```
 # 🌾 Agricultural RAG Knowledge Base - Milestone 1
 
 A production-ready Retrieval-Augmented Generation (RAG) system for agricultural domain documents.
