@@ -185,7 +185,19 @@ def persist_collection(ids: Sequence[str], documents: Sequence[str], metadatas: 
         collection.delete(where={})  # clear them to ensure fresh build
         logger.info("Cleared existing collection entries")  # log clearing
 
-    collection.add(ids=list(ids), documents=list(documents), metadatas=list(metadatas), embeddings=list(embeddings))  # add data to chroma
+    # Add data in batches to avoid ChromaDB's batch size limit
+    CHROMA_BATCH_SIZE = 5000  # safe batch size for ChromaDB
+    total_items = len(ids)
+    
+    for batch_start in tqdm(range(0, total_items, CHROMA_BATCH_SIZE), desc="Persisting to ChromaDB", unit="batch"):
+        batch_end = min(batch_start + CHROMA_BATCH_SIZE, total_items)
+        collection.add(
+            ids=list(ids[batch_start:batch_end]),
+            documents=list(documents[batch_start:batch_end]),
+            metadatas=list(metadatas[batch_start:batch_end]),
+            embeddings=list(embeddings[batch_start:batch_end])
+        )
+    
     logger.info("Persisted %s vectors to collection '%s'", len(documents), COLLECTION_NAME)  # log persistence
     return collection  # return the collection object
 
