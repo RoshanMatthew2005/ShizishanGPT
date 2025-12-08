@@ -21,8 +21,8 @@ load_dotenv()  # load environment variables from .env into os.environ
 
 # Configuration variables with sensible defaults from environment
 DATA_DIR = Path(os.getenv("PDF_DIRECTORY", "Data"))  # where PDF files live
-VECTOR_STORE_DIR = Path(os.getenv("VECTOR_STORE_DIRECTORY", "models/vectorstore"))  # where to persist ChromaDB
-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "agricultural_knowledge_base")  # chroma collection name
+VECTOR_STORE_DIR = Path(os.getenv("VECTOR_STORE_DIRECTORY", "vectorstore/knowledge_base"))  # where to persist ChromaDB
+COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "knowledge_base")  # chroma collection name
 LOG_PATH = Path(os.getenv("BUILD_LOG_PATH", "knowledge_base_build.log"))  # path for build logs
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "900"))  # target characters per chunk
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))  # overlap between chunks

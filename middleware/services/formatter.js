@@ -1,0 +1,155 @@
+/**
+ * Response Formatter Service
+ * Standardizes API response format
+ */
+
+/**
+ * Format successful response
+ * @param {Object} data - Response data from backend
+ * @param {String} message - Optional success message
+ * @returns {Object} - Standardized response
+ */
+function formatSuccess(data, message = 'Success') {
+  return {
+    success: true,
+    message,
+    data,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Format error response
+ * @param {String} error - Error message
+ * @param {Number} status - HTTP status code
+ * @param {Object} details - Additional error details
+ * @returns {Object} - Standardized error response
+ */
+function formatError(error, status = 500, details = null) {
+  return {
+    success: false,
+    error,
+    status,
+    details,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Format validation error
+ * @param {String} errors - Validation error messages
+ * @returns {Object} - Standardized validation error response
+ */
+function formatValidationError(errors) {
+  return {
+    success: false,
+    error: 'Validation failed',
+    status: 400,
+    details: errors,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Format LLM/RAG query response
+ * @param {Object} backendData - Data from FastAPI
+ * @returns {Object} - Formatted response
+ */
+function formatQueryResponse(backendData) {
+  // Handle both agent responses and direct LLM responses
+  const answer = backendData.final_answer || backendData.answer || backendData.response || '';
+  const tools = backendData.tools_used || [];
+  const executionTime = backendData.execution_time || 0;
+  
+  return {
+    success: true,
+    message: 'Query processed successfully',
+    answer: answer,
+    tools_used: tools,
+    execution_time: executionTime,
+    confidence: backendData.confidence || null,
+    sources: backendData.sources || null,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Format RAG retrieval response
+ * @param {Object} backendData - Data from FastAPI
+ * @returns {Object} - Formatted response
+ */
+function formatRAGResponse(backendData) {
+  return formatSuccess({
+    documents: backendData.documents || [],
+    num_results: backendData.num_results || 0,
+    context: backendData.context || '',
+    avg_relevance: backendData.avg_relevance || 0
+  }, 'Documents retrieved successfully');
+}
+
+/**
+ * Format yield prediction response
+ * @param {Object} backendData - Data from FastAPI
+ * @returns {Object} - Formatted response
+ */
+function formatYieldResponse(backendData) {
+  return formatSuccess({
+    predicted_yield: backendData.prediction || backendData.predicted_yield || 0,
+    unit: backendData.unit || 'tonnes per hectare',
+    confidence: backendData.confidence || null,
+    inputs: backendData.inputs || {}
+  }, 'Yield predicted successfully');
+}
+
+/**
+ * Format weather analysis response
+ * @param {Object} backendData - Data from FastAPI
+ * @returns {Object} - Formatted response
+ */
+function formatWeatherResponse(backendData) {
+  return formatSuccess({
+    advice: backendData.advice || backendData.message || '',
+    analysis: backendData.analysis || null,
+    recommendations: backendData.recommendations || []
+  }, 'Weather analysis complete');
+}
+
+/**
+ * Format pest detection response
+ * @param {Object} backendData - Data from FastAPI
+ * @returns {Object} - Formatted response
+ */
+function formatPestResponse(backendData) {
+  return formatSuccess({
+    top_prediction: backendData.top_prediction || '',
+    confidence: backendData.confidence || 0,
+    all_predictions: backendData.all_predictions || [],
+    recommendations: backendData.recommendations || []
+  }, 'Pest detection complete');
+}
+
+/**
+ * Format translation response
+ * @param {Object} backendData - Data from FastAPI
+ * @returns {Object} - Formatted response
+ */
+function formatTranslationResponse(backendData) {
+  return formatSuccess({
+    translated_text: backendData.translated_text || '',
+    source_language: backendData.source_language || 'auto',
+    target_language: backendData.target_language || '',
+    original_text: backendData.original_text || ''
+  }, 'Translation complete');
+}
+
+module.exports = {
+  formatSuccess,
+  formatError,
+  formatValidationError,
+  formatQueryResponse,
+  formatRAGResponse,
+  formatYieldResponse,
+  formatWeatherResponse,
+  formatPestResponse,
+  formatTranslationResponse
+};

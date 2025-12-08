@@ -18,6 +18,14 @@ chromadb==0.4.22
 # Utilities
 python-dotenv==1.0.0
 tqdm==4.66.1
+httpx>=0.24.0  # For weather API integration
+tavily-python==0.3.0  # Tavily Search API for real-time web search
+
+# Mini LLM Training (Milestone 3)
+torch>=2.0.0
+transformers>=4.30.0
+accelerate>=0.20.0
+datasets>=2.12.0
 
 # Optional: Alternative vector store
 # faiss-cpu==1.7.4
