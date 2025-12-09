@@ -135,6 +135,9 @@ class PestDetectionResponse(BaseModel):
     confidence: float
     all_predictions: List[Dict]
     recommendations: List[str] = []
+    agent_analysis: Optional[str] = None
+    agent_tools_used: Optional[List[str]] = None
+    agent_sources: Optional[List] = None
 
 
 class TranslationResponse(BaseModel):

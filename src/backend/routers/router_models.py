@@ -90,13 +90,16 @@ async def predict_yield(
 @router.post("/detect_pest", response_model=PestDetectionResponse)
 async def detect_pest(
     file: UploadFile = File(...),
-    top_k: int = Form(default=3)
+    top_k: int = Form(default=3),
+    use_agent: bool = Form(default=True),
+    query: str = Form(default="")
 ) -> Dict[str, Any]:
     """
     Detect plant disease from image
     
     Uses ResNet18 model trained on PlantVillage dataset
     Accepts: JPG, PNG (max 10MB)
+    Optional: ReAct agent for detailed analysis (enabled by default)
     """
     try:
         logger.info(f"POST /detect_pest - file: {file.filename}")
@@ -116,11 +119,18 @@ async def detect_pest(
         if len(image_bytes) == 0:
             raise HTTPException(status_code=400, detail="Empty image file")
         
-        # Detect pest
+        # Detect pest (with optional agent analysis)
         result = await pest_service.detect(
             image_bytes=image_bytes,
-            top_k=top_k
+            top_k=top_k,
+            use_agent=use_agent,
+            agent_service=agent_service if use_agent else None,
+            query=query
         )
+        
+        logger.info(f"Pest detection result keys: {result.keys()}")
+        if use_agent:
+            logger.info(f"Agent analysis present: {bool(result.get('agent_analysis'))}")
         
         # Log to history (without storing image bytes)
         await history_service.log_query(
@@ -128,17 +138,33 @@ async def detect_pest(
             query_data={
                 "filename": file.filename,
                 "top_k": top_k,
+                "use_agent": use_agent,
+                "query": query,
                 "image_info": result.get("image_info", {})
             },
             response_data={
                 "predictions": result.get("predictions", []),
-                "recommendation": result.get("recommendation")
+                "recommendations": result.get("recommendations"),
+                "agent_analysis": result.get("agent_analysis") if use_agent else None
             },
-            execution_time=result.get("execution_time", 0)
+            execution_time=result.get("total_execution_time", result.get("execution_time", 0))
         )
         
-        # Format response
-        return format_prediction_response(result, "pest")
+        # Return data directly (not wrapped) to match PestDetectionResponse schema
+        response_data = {
+            "top_prediction": result.get("disease", "Unknown"),
+            "confidence": result.get("confidence", 0.0),
+            "all_predictions": result.get("predictions", []),
+            "recommendations": result.get("recommendations", [])
+        }
+        
+        # Add agent fields if available
+        if use_agent and result.get("agent_analysis"):
+            response_data["agent_analysis"] = result.get("agent_analysis")
+            response_data["agent_tools_used"] = result.get("agent_tools_used", [])
+            response_data["agent_sources"] = result.get("agent_sources", [])
+        
+        return response_data
         
     except HTTPException:
         raise

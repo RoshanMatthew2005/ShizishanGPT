@@ -174,7 +174,7 @@ const apiService = {
   /**
    * Detect pest/disease from image
    */
-  async detectPest(file, topK = 3) {
+  async detectPest(file, topK = 3, useAgent = true, query = '') {
     return withRetry(async () => {
       // Create FormData for file upload
       const formData = new FormData();
@@ -186,14 +186,18 @@ const apiService = {
         knownLength: file.size
       });
       
-      // Append top_k parameter
+      // Append parameters
       formData.append('top_k', topK.toString());
+      formData.append('use_agent', useAgent.toString());
+      formData.append('query', query);
       
       logger.info('Sending pest detection to backend:', {
         filename: file.originalname,
         size: file.size,
         mimetype: file.mimetype,
-        topK: topK
+        topK: topK,
+        useAgent: useAgent,
+        query: query
       });
       
       // Send multipart request with proper headers and extended timeout
@@ -202,14 +206,15 @@ const apiService = {
           ...formData.getHeaders()
           // Let axios calculate Content-Length automatically
         },
-        timeout: 30000, // 30 seconds for image processing
+        timeout: 60000, // 60 seconds for image processing + agent analysis
         maxContentLength: Infinity,
         maxBodyLength: Infinity
       });
       
       logger.info('Pest detection response received:', {
         success: response.data?.success,
-        predictions: response.data?.predictions?.length
+        top_prediction: response.data?.top_prediction,
+        has_agent_analysis: !!response.data?.agent_analysis
       });
       
       return response.data;

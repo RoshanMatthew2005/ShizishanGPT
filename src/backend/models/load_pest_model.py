@@ -156,13 +156,13 @@ class PestModel:
                 })
             
             # Get recommendations based on top prediction
-            top_disease = all_predictions[0]["disease"]
+            top_disease = all_predictions[0]["class"]  # Fixed: use "class" not "disease"
             recommendations = self._get_recommendations(top_disease)
             
             result = {
-                "disease": all_predictions[0]["class"],  # Use class from prediction
+                "disease": all_predictions[0]["class"],
                 "confidence": all_predictions[0]["confidence"],
-                "predictions": all_predictions,  # Changed from all_predictions
+                "predictions": all_predictions,
                 "recommendations": recommendations
             }
             

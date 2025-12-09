@@ -626,8 +626,34 @@ Answer:"""
                         final_answer = observation
                         break
                 
+                # For pest detection, pass results to LLM for detailed analysis
+                if result.get("success") and tool_to_use == "pest_detection":
+                    self._log(f"✅ Got pest detection results, now calling LLM for analysis", "INFO")
+                    # Create context-rich query for LLM
+                    llm_query = f"{query}\n\nPest Detection Result: {observation}"
+                    llm_result = self._execute_tool("llm_generation", llm_query)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM analyzed pest detection", "SUCCESS")
+                        
+                        # Add LLM step to reasoning
+                        reasoning_steps.append({
+                            "iteration": iteration + 0.5,  # Sub-step
+                            "thought": "I should analyze the pest detection with detailed treatment and prevention information",
+                            "action": "llm_generation",
+                            "action_input": llm_query,
+                            "observation": final_answer,
+                            "success": True
+                        })
+                        break
+                    else:
+                        # Fallback to raw detection
+                        final_answer = observation
+                        break
+                
                 # For other prediction tools, stop immediately with their result  
-                if result.get("success") and tool_to_use in ["pest_detection", "weather_prediction", "weather_realtime"]:
+                if result.get("success") and tool_to_use in ["weather_prediction", "weather_realtime"]:
                     final_answer = observation
                     self._log(f"✅ Got successful result from {tool_to_use}, using it as final answer", "SUCCESS")
                     break

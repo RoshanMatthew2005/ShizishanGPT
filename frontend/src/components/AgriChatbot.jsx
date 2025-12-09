@@ -252,16 +252,44 @@ export default function AgriChatbot() {
       // Check if image is attached for pest detection
       const imageFile = currentFiles.find((f) => f.type === "image");
       if (imageFile) {
+        // Pest detection with ReAct agent (agent processes everything on backend)
         response = await api.detectPest(imageFile.file, 3);
-        const predictions = response.data?.predictions || [];
-        const recommendation = response.data?.recommendation || "";
+        
+        // Backend returns: {top_prediction, confidence, all_predictions, recommendations, agent_analysis, agent_tools_used}
+        const topPrediction = response.top_prediction || "Unknown";
+        const confidence = response.confidence || 0;
+        const allPredictions = response.all_predictions || [];
+        const recommendations = response.recommendations || [];
+        const agentAnalysis = response.agent_analysis || "";
+        const toolsUsed = response.agent_tools_used || [];
 
         let botText = "🔍 **Plant Disease Detection Results:**\n\n";
-        predictions.forEach((pred, idx) => {
-          botText += `${idx + 1}. ${pred.class} - ${(pred.confidence * 100).toFixed(1)}% confidence\n`;
-        });
-        if (recommendation) {
-          botText += `\n📋 **Recommendation:**\n${recommendation}`;
+        botText += `🌿 **Detected Disease:** ${topPrediction}\n`;
+        botText += `📊 **Confidence:** ${(confidence * 100).toFixed(1)}%\n\n`;
+        
+        if (allPredictions.length > 1) {
+          botText += "**Other Possible Diseases:**\n";
+          allPredictions.slice(1, 3).forEach((pred, idx) => {
+            botText += `${idx + 1}. ${pred.class} - ${(pred.confidence * 100).toFixed(1)}%\n`;
+          });
+          botText += "\n";
+        }
+        
+        if (recommendations.length > 0) {
+          botText += `📋 **Quick Recommendations:**\n`;
+          recommendations.forEach((rec, idx) => {
+            botText += `${idx + 1}. ${rec}\n`;
+          });
+          botText += "\n";
+        }
+        
+        // Add agent analysis (comprehensive info from ReAct agent)
+        if (agentAnalysis) {
+          botText += `🤖 **Detailed Analysis & Treatment:**\n${agentAnalysis}`;
+        }
+        
+        if (toolsUsed.length > 0) {
+          botText += `\n\n🔧 **Tools used:** ${toolsUsed.join(", ")}`;
         }
 
         const botMessage = {
@@ -269,7 +297,7 @@ export default function AgriChatbot() {
           type: "bot",
           text: botText,
           timestamp: new Date(),
-          data: response.data,
+          data: response,
         };
         setMessages((prev) => [...prev, botMessage]);
       } else {

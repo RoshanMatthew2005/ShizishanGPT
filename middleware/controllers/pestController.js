@@ -24,12 +24,16 @@ async function detect(req, res, next) {
     }
 
     const topK = parseInt(req.body.top_k) || 3;
+    const useAgent = req.body.use_agent !== 'false'; // Default true
+    const query = req.body.query || '';
     
     logger.info('Processing pest detection:', { 
       filename: req.file.originalname,
       size: req.file.size,
       mimetype: req.file.mimetype,
       topK: topK,
+      useAgent: useAgent,
+      query: query,
       bufferSize: req.file.buffer ? req.file.buffer.length : 0
     });
 
@@ -43,11 +47,13 @@ async function detect(req, res, next) {
       });
     }
 
-    // Call FastAPI backend with file data
-    const result = await apiService.detectPest(req.file, topK);
+    // Call FastAPI backend with file data (with agent support)
+    const result = await apiService.detectPest(req.file, topK, useAgent, query);
     
     logger.info('Pest detection successful:', {
-      predictions: result.predictions?.length || 0
+      top_prediction: result.top_prediction,
+      confidence: result.confidence,
+      has_agent_analysis: !!result.agent_analysis
     });
     
     // Format and send response
