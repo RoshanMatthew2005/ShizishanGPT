@@ -179,20 +179,37 @@ const apiService = {
       // Create FormData for file upload
       const formData = new FormData();
       
-      // Append file buffer
+      // Append file buffer with proper options
       formData.append('file', file.buffer, {
         filename: file.originalname,
-        contentType: file.mimetype
+        contentType: file.mimetype,
+        knownLength: file.size
       });
       
       // Append top_k parameter
       formData.append('top_k', topK.toString());
       
-      // Send multipart request
+      logger.info('Sending pest detection to backend:', {
+        filename: file.originalname,
+        size: file.size,
+        mimetype: file.mimetype,
+        topK: topK
+      });
+      
+      // Send multipart request with proper headers and extended timeout
       const response = await apiClient.post('/api/detect_pest', formData, {
         headers: {
           ...formData.getHeaders()
-        }
+          // Let axios calculate Content-Length automatically
+        },
+        timeout: 30000, // 30 seconds for image processing
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
+      });
+      
+      logger.info('Pest detection response received:', {
+        success: response.data?.success,
+        predictions: response.data?.predictions?.length
       });
       
       return response.data;

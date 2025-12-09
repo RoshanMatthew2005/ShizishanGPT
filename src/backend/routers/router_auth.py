@@ -189,7 +189,7 @@ async def update_current_user(
 
 
 # Admin endpoints
-@router.get("/users", response_model=List[UserResponse])
+@router.get("/admin/users", response_model=List[UserResponse])
 async def get_all_users(
     skip: int = 0,
     limit: int = 100,
@@ -201,7 +201,24 @@ async def get_all_users(
     return users
 
 
-@router.get("/users/{user_id}", response_model=UserResponse)
+@router.post("/admin/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    user_data: UserCreate,
+    admin_user: dict = Depends(require_admin),
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Create new user (Admin only)"""
+    try:
+        new_user = auth_service.register_user(user_data.model_dump())
+        return new_user
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/admin/users/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
     admin_user: dict = Depends(require_admin),
@@ -219,52 +236,61 @@ async def get_user(
     return user
 
 
-@router.post("/users/{user_id}/manage")
-async def manage_user(
+@router.put("/admin/users/{user_id}", response_model=UserResponse)
+async def update_user(
     user_id: str,
-    action_data: AdminUserManagement,
+    update_data: UserUpdate,
     admin_user: dict = Depends(require_admin),
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """
-    Manage user (Admin only)
+    """Update user (Admin only)"""
+    update_dict = {k: v for k, v in update_data.model_dump(exclude_unset=True).items() if v is not None}
     
-    Actions: activate, deactivate, delete, grant_admin, revoke_admin
-    """
-    action = action_data.action
-    
-    # Prevent self-modification for critical actions
-    if user_id == admin_user["id"] and action in ["deactivate", "delete", "revoke_admin"]:
+    if not update_dict:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot perform this action on your own account"
+            detail="No fields to update"
         )
     
-    try:
-        if action == "activate":
-            auth_service.toggle_user_status(user_id, True)
-        elif action == "deactivate":
-            auth_service.toggle_user_status(user_id, False)
-        elif action == "delete":
-            if not auth_service.delete_user(user_id):
-                raise HTTPException(status_code=404, detail="User not found")
-            return {"message": "User deleted successfully"}
-        elif action == "grant_admin":
-            auth_service.grant_admin_role(user_id)
-        elif action == "revoke_admin":
-            auth_service.update_user(user_id, {"role": "user"})
-        else:
-            raise HTTPException(status_code=400, detail="Invalid action")
-        
-        updated_user = auth_service.get_user_by_id(user_id)
-        return {"message": f"Action '{action}' completed", "user": updated_user}
-        
-    except Exception as e:
-        logger.error(f"User management error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    updated_user = auth_service.update_user(user_id, update_dict)
+    
+    if not updated_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return updated_user
 
 
-@router.delete("/users/{user_id}")
+@router.put("/admin/users/{user_id}/toggle-active", response_model=UserResponse)
+async def toggle_user_active(
+    user_id: str,
+    admin_user: dict = Depends(require_admin),
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Toggle user active status (Admin only)"""
+    if user_id == admin_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot toggle your own active status"
+        )
+    
+    user = auth_service.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    new_status = not user.get("is_active", True)
+    auth_service.toggle_user_status(user_id, new_status)
+    updated_user = auth_service.get_user_by_id(user_id)
+    
+    return updated_user
+
+
+@router.delete("/admin/users/{user_id}")
 async def delete_user(
     user_id: str,
     admin_user: dict = Depends(require_admin),

@@ -385,12 +385,34 @@ Tool choice:"""
             if tool_name == "rag_retrieval":
                 result = tool.query(parsed_input.get("query", ""))
             elif tool_name == "llm_generation":
-                # If we have previous observations (e.g., from Tavily), include them as context
+                # If we have previous observations (e.g., from Tavily or RAG), include them as context
                 query_text = parsed_input.get("query", "")
                 if self.observations:
                     # Add context from previous tool results
                     context_text = "\n\n".join(self.observations[-2:])  # Last 2 observations
-                    enhanced_query = f"""Based on the following information, provide a comprehensive answer to the user's question.
+                    
+                    # Check if context is from RAG or Tavily
+                    if "Context:" in context_text or "retrieved documents" in context_text.lower():
+                        # RAG context - emphasize using the knowledge base information
+                        enhanced_query = f"""Based on the following agricultural knowledge from our database, provide a comprehensive answer to the user's question.
+
+Knowledge Base Information:
+{context_text}
+
+User's question: {query_text}
+
+Instructions:
+- Use the specific information from the knowledge base above
+- Provide a clear, detailed answer based on the retrieved context
+- If the context contains specific techniques, methods, or recommendations, include them
+- Organize the information in a helpful way for farmers
+- Be practical and actionable
+- If the knowledge base doesn't fully answer the question, acknowledge what information is available
+
+Answer:"""
+                    else:
+                        # Tavily or other context
+                        enhanced_query = f"""Based on the following information, provide a comprehensive answer to the user's question.
 
 Information available:
 {context_text}
@@ -578,21 +600,80 @@ Answer:"""
                 })
                 
                 # Check if we have sufficient information
-                # For prediction tools, stop immediately with their result
-                if result.get("success") and tool_to_use in ["yield_prediction", "pest_detection", "weather_prediction", "weather_realtime"]:
+                # For yield prediction, pass results to LLM for better analysis
+                if result.get("success") and tool_to_use == "yield_prediction":
+                    self._log(f"✅ Got yield prediction results, now calling LLM for analysis", "INFO")
+                    # Create context-rich query for LLM
+                    llm_query = f"{query}\n\nYield Prediction Result: {observation}"
+                    llm_result = self._execute_tool("llm_generation", llm_query)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM analyzed yield prediction", "SUCCESS")
+                        
+                        # Add LLM step to reasoning
+                        reasoning_steps.append({
+                            "iteration": iteration + 0.5,  # Sub-step
+                            "thought": "I should analyze the yield prediction with detailed insights",
+                            "action": "llm_generation",
+                            "action_input": llm_query,
+                            "observation": final_answer,
+                            "success": True
+                        })
+                        break
+                    else:
+                        # Fallback to raw prediction
+                        final_answer = observation
+                        break
+                
+                # For other prediction tools, stop immediately with their result  
+                if result.get("success") and tool_to_use in ["pest_detection", "weather_prediction", "weather_realtime"]:
                     final_answer = observation
                     self._log(f"✅ Got successful result from {tool_to_use}, using it as final answer", "SUCCESS")
                     break
                 
                 # For Tavily search, pass results to LLM for better synthesis
                 if result.get("success") and tool_to_use == "tavily_search":
-                    self._log(f"✅ Got Tavily results, passing to LLM for synthesis", "INFO")
-                    # Continue to next iteration - LLM will use Tavily context
-                    conversation_context = f"\nTavily search results: {observation[:1000]}"
-                    continue
+                    self._log(f"✅ Got Tavily results, now calling LLM for synthesis", "INFO")
+                    # Directly call LLM with Tavily context
+                    llm_result = self._execute_tool("llm_generation", query)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM synthesized Tavily results", "SUCCESS")
+                        break
+                    else:
+                        # Fallback to raw Tavily results
+                        final_answer = observation
+                        break
                 
-                # For RAG and LLM generation, stop after getting results
-                if result.get("success") and tool_to_use in ["rag_retrieval", "llm_generation"]:
+                # For RAG retrieval, pass results to LLM for better synthesis
+                if result.get("success") and tool_to_use == "rag_retrieval":
+                    self._log(f"✅ Got RAG results, now calling LLM for synthesis", "INFO")
+                    # Directly call LLM with RAG context in observations
+                    llm_result = self._execute_tool("llm_generation", query)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM synthesized RAG results", "SUCCESS")
+                        
+                        # Add LLM step to reasoning
+                        reasoning_steps.append({
+                            "iteration": iteration + 0.5,  # Sub-step
+                            "thought": "I should synthesize the RAG results into a clear answer",
+                            "action": "llm_generation",
+                            "action_input": query,
+                            "observation": final_answer,
+                            "success": True
+                        })
+                        break
+                    else:
+                        # Fallback to raw RAG results
+                        final_answer = observation
+                        break
+                
+                # For LLM generation, stop after getting results
+                if result.get("success") and tool_to_use == "llm_generation":
                     final_answer = observation
                     self._log(f"✅ Got successful result from {tool_to_use}, stopping", "SUCCESS")
                     break
@@ -662,7 +743,7 @@ Answer:"""
             return f"Error: {result.get('error', 'Unknown error')}"
         
         if tool_name == "rag_retrieval":
-            return result.get("context", "No context found")[:500]
+            return result.get("context", "No context found")
         elif tool_name == "llm_generation":
             return result.get("generated_text", result.get("answer", "No answer generated"))
         elif tool_name == "translation":

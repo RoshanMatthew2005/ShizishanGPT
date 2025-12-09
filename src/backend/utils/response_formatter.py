@@ -81,13 +81,27 @@ def format_prediction_response(prediction: Any, model_type: str, confidence: flo
     Format model prediction response
     """
     if model_type == "yield":
-        return format_success({
-            "prediction": prediction,
-            "predicted_yield": prediction,
+        # Extract prediction value and agent analysis
+        pred_value = prediction.get("prediction") if isinstance(prediction, dict) else prediction
+        
+        response_data = {
+            "prediction": pred_value,
+            "predicted_yield": pred_value,
             "unit": "tonnes per hectare",
             "confidence": confidence,
-            "inputs": inputs
-        }, "Yield predicted successfully")
+            "inputs": inputs if inputs else prediction.get("inputs", {})
+        }
+        
+        # Include agent analysis if available
+        if isinstance(prediction, dict):
+            if prediction.get("agent_analysis"):
+                response_data["agent_analysis"] = prediction["agent_analysis"]
+            if prediction.get("agent_tools_used"):
+                response_data["agent_tools_used"] = prediction["agent_tools_used"]
+            if prediction.get("agent_sources"):
+                response_data["agent_sources"] = prediction["agent_sources"]
+        
+        return format_success(response_data, "Yield predicted successfully")
     
     elif model_type == "pest":
         return format_success({

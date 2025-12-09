@@ -134,11 +134,15 @@ function formatPestResponse(backendData) {
  * @returns {Object} - Formatted response
  */
 function formatTranslationResponse(backendData) {
+  // Extract data from backend response (handles both wrapped and unwrapped formats)
+  const translationData = backendData.data || backendData;
+  
   return formatSuccess({
-    translated_text: backendData.translated_text || '',
-    source_language: backendData.source_language || 'auto',
-    target_language: backendData.target_language || '',
-    original_text: backendData.original_text || ''
+    translated_text: translationData.translated_text || '',
+    source_language: translationData.source_lang || translationData.source_language || 'auto',
+    target_language: translationData.target_lang || translationData.target_language || '',
+    original_text: translationData.original_text || '',
+    detected_language: translationData.detected_language || translationData.source_language || 'auto'
   }, 'Translation complete');
 }
 

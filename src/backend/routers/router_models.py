@@ -18,20 +18,29 @@ from ..utils.response_formatter import (
 from ..services.yield_service import yield_service
 from ..services.pest_service import pest_service
 from ..services.history_service import history_service
+from ..services.agent_service import agent_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["models"])
 
 
 @router.post("/predict_yield", response_model=YieldPredictionResponse)
-async def predict_yield(request: YieldPredictionRequest) -> Dict[str, Any]:
+async def predict_yield(
+    request: YieldPredictionRequest,
+    use_agent: bool = True  # Enable agent analysis by default
+) -> Dict[str, Any]:
     """
-    Predict crop yield
+    Predict crop yield with AI-powered insights
     
-    Uses RandomForest model to predict yield based on agricultural parameters
+    Uses RandomForest model to predict yield based on agricultural parameters.
+    Results are processed through ReAct agent for detailed analysis and recommendations.
+    
+    Args:
+        request: Yield prediction parameters
+        use_agent: Enable ReAct agent for detailed analysis (default: True)
     """
     try:
-        logger.info(f"POST /predict_yield - crop: {request.crop}, state: {request.state}")
+        logger.info(f"POST /predict_yield - crop: {request.crop}, state: {request.state}, agent: {use_agent}")
         
         # Validate inputs
         if request.area <= 0:
@@ -40,7 +49,7 @@ async def predict_yield(request: YieldPredictionRequest) -> Dict[str, Any]:
         if request.rainfall < 0 or request.fertilizer < 0 or request.pesticide < 0:
             raise HTTPException(status_code=400, detail="Values cannot be negative")
         
-        # Make prediction
+        # Make prediction with optional agent analysis
         result = await yield_service.predict(
             crop=request.crop,
             season=request.season,
@@ -48,8 +57,17 @@ async def predict_yield(request: YieldPredictionRequest) -> Dict[str, Any]:
             rainfall=request.rainfall,
             fertilizer=request.fertilizer,
             pesticide=request.pesticide,
-            area=request.area
+            area=request.area,
+            use_agent=use_agent,
+            agent_service=agent_service if use_agent else None
         )
+        
+        # Log result for debugging
+        logger.info(f"Prediction result keys: {list(result.keys())}")
+        if "agent_analysis" in result:
+            logger.info(f"✅ Agent analysis present: {result['agent_analysis'][:100]}...")
+        else:
+            logger.info("⚠️ No agent analysis in result")
         
         # Log to history
         await history_service.log_query(

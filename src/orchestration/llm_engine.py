@@ -39,7 +39,7 @@ class LLMEngine:
         
         # Generation parameters
         self.default_params = {
-            'max_length': 150,
+            'max_length': 512,
             'temperature': 0.9,
             'top_k': 50,
             'top_p': 0.9,
@@ -54,7 +54,7 @@ class LLMEngine:
         self.gemma_params = {
             'temperature': 0.7,
             'top_p': 0.9,
-            'max_tokens': 200
+            'max_tokens': 1024
         }
         
     def load(self) -> bool:
@@ -258,7 +258,7 @@ class LLMEngine:
         
         result = self.generate(
             prompt,
-            max_length=150,
+            max_length=512,
             temperature=0.8,
             repetition_penalty=2.0  # Higher penalty for Q&A
         )

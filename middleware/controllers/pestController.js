@@ -15,6 +15,7 @@ async function detect(req, res, next) {
   try {
     // Check if file was uploaded
     if (!req.file) {
+      logger.warn('No file uploaded in request');
       return res.status(400).json({
         success: false,
         error: 'No image file uploaded',
@@ -28,17 +29,36 @@ async function detect(req, res, next) {
       filename: req.file.originalname,
       size: req.file.size,
       mimetype: req.file.mimetype,
-      topK: topK
+      topK: topK,
+      bufferSize: req.file.buffer ? req.file.buffer.length : 0
     });
+
+    // Validate file buffer
+    if (!req.file.buffer || req.file.buffer.length === 0) {
+      logger.error('File buffer is empty');
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid file',
+        message: 'Uploaded file is empty or corrupted'
+      });
+    }
 
     // Call FastAPI backend with file data
     const result = await apiService.detectPest(req.file, topK);
+    
+    logger.info('Pest detection successful:', {
+      predictions: result.predictions?.length || 0
+    });
     
     // Format and send response
     res.json(formatPestResponse(result));
     
   } catch (error) {
-    logger.error('Pest detection failed:', error);
+    logger.error('Pest detection failed:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data
+    });
     
     // Handle multer errors
     if (error.message === 'Only image files are allowed') {
@@ -54,6 +74,15 @@ async function detect(req, res, next) {
         success: false,
         error: 'File too large',
         message: 'Image must be smaller than 10MB'
+      });
+    }
+
+    // Handle backend errors
+    if (error.response?.data) {
+      return res.status(error.response.status || 500).json({
+        success: false,
+        error: error.response.data.detail || error.response.data.error || 'Backend error',
+        message: error.response.data.message || 'Failed to process image'
       });
     }
     

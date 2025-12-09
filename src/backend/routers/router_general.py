@@ -16,7 +16,8 @@ from ..utils.response_formatter import (
     format_llm_response,
     format_rag_response,
     format_translation_response,
-    format_error
+    format_error,
+    format_success
 )
 from ..services.llm_service import llm_service
 from ..services.rag_service import rag_service
@@ -107,7 +108,7 @@ async def query_rag(request: RAGRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/translate", response_model=TranslationResponse)
+@router.post("/translate")
 async def translate_text(request: TranslationRequest) -> Dict[str, Any]:
     """
     Translate text between languages
@@ -137,7 +138,17 @@ async def translate_text(request: TranslationRequest) -> Dict[str, Any]:
         )
         
         # Format response
-        return format_translation_response(result)
+        response_data = format_success({
+            "translated_text": result.get("translated_text", request.text),
+            "original_text": request.text,
+            "source_lang": request.source_lang or "auto",
+            "target_lang": request.target_lang,
+            "detected_language": result.get("detected_language", request.source_lang),
+            "execution_time": result.get("execution_time", 0)
+        }, "Translation complete")
+        
+        logger.info(f"🟡 Returning translation response: {len(response_data.get('data', {}).get('translated_text', ''))} chars")
+        return response_data
         
     except Exception as e:
         logger.error(f"Error in /translate: {e}")

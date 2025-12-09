@@ -55,7 +55,7 @@ app.use(cors({
 // Handle preflight OPTIONS requests
 app.options('*', cors());
 
-// Rate limiting - Prevent abuse
+// Rate limiting - Prevent abuse (excluding auth endpoints for development)
 const limiter = rateLimit({
   windowMs: config.RATE_LIMIT_WINDOW,
   max: config.RATE_LIMIT_MAX_REQUESTS,
@@ -65,7 +65,11 @@ const limiter = rateLimit({
     status: 429
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for auth endpoints during development
+    return config.NODE_ENV === 'development' && req.path.startsWith('/api/auth');
+  }
 });
 app.use(limiter);
 

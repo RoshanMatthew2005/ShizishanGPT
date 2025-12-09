@@ -124,7 +124,7 @@ exports.getAllUsers = async (req, res, next) => {
     
     logger.info('📋 Get all users request');
     
-    const response = await axios.get(`${BACKEND_URL}/api/auth/users`, {
+    const response = await axios.get(`${BACKEND_URL}/api/auth/admin/users`, {
       params: { skip, limit },
       headers: { Authorization: token }
     });
@@ -227,6 +227,103 @@ exports.deleteUser = async (req, res, next) => {
     res.json(response.data);
   } catch (error) {
     logger.error('❌ Delete user error:', error.response?.data || error.message);
+    
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      next(error);
+    }
+  }
+};
+
+/**
+ * Create user (Admin only)
+ */
+exports.createUser = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization;
+    
+    if (!token) {
+      return res.status(401).json({ detail: 'Authorization token required' });
+    }
+    
+    logger.info('👤 Create user request');
+    
+    const response = await axios.post(
+      `${BACKEND_URL}/api/auth/admin/users`,
+      req.body,
+      { headers: { Authorization: token } }
+    );
+    
+    res.status(201).json(response.data);
+  } catch (error) {
+    logger.error('❌ Create user error:', error.response?.data || error.message);
+    
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      next(error);
+    }
+  }
+};
+
+/**
+ * Update user (Admin only)
+ */
+exports.updateUser = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization;
+    
+    if (!token) {
+      return res.status(401).json({ detail: 'Authorization token required' });
+    }
+    
+    const { userId } = req.params;
+    
+    logger.info(`✏️ Update user ${userId} request`);
+    
+    const response = await axios.put(
+      `${BACKEND_URL}/api/auth/admin/users/${userId}`,
+      req.body,
+      { headers: { Authorization: token } }
+    );
+    
+    res.json(response.data);
+  } catch (error) {
+    logger.error('❌ Update user error:', error.response?.data || error.message);
+    
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      next(error);
+    }
+  }
+};
+
+/**
+ * Toggle user active status (Admin only)
+ */
+exports.toggleUserActive = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization;
+    
+    if (!token) {
+      return res.status(401).json({ detail: 'Authorization token required' });
+    }
+    
+    const { userId } = req.params;
+    
+    logger.info(`🔄 Toggle user ${userId} active status`);
+    
+    const response = await axios.put(
+      `${BACKEND_URL}/api/auth/admin/users/${userId}/toggle-active`,
+      req.body,
+      { headers: { Authorization: token } }
+    );
+    
+    res.json(response.data);
+  } catch (error) {
+    logger.error('❌ Toggle user active error:', error.response?.data || error.message);
     
     if (error.response) {
       res.status(error.response.status).json(error.response.data);

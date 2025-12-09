@@ -46,14 +46,14 @@ class TranslationService:
             self.loaded = False
             return False
     
-    def translate(self, text: str, target_lang: str, source_lang: str = "auto") -> Dict[str, Any]:
+    def translate(self, text: str, source_lang: str = "auto", target_lang: str = "en") -> Dict[str, Any]:
         """
         Translate text to target language
         
         Args:
             text: Text to translate
-            target_lang: Target language code
             source_lang: Source language code (auto-detect if 'auto')
+            target_lang: Target language code
         
         Returns:
             Dictionary with translation results
@@ -66,7 +66,8 @@ class TranslationService:
                     "translated_text": text,
                     "source_language": source_lang,
                     "target_language": target_lang,
-                    "original_text": text
+                    "original_text": text,
+                    "detected_language": source_lang
                 }
             
             # Validate language codes
@@ -74,6 +75,7 @@ class TranslationService:
                 logger.warning(f"Unsupported target language: {target_lang}")
             
             # Perform translation
+            logger.info(f"🔵 Attempting translation: text_length={len(text)}, src={source_lang}, dest={target_lang}")
             result = self.translator.translate(
                 text,
                 dest=target_lang,
@@ -81,12 +83,14 @@ class TranslationService:
             )
             
             detected_source = result.src if hasattr(result, 'src') else source_lang
+            logger.info(f"🟢 Translation result: translated_length={len(result.text)}, detected_src={detected_source}")
             
             translation_result = {
                 "translated_text": result.text,
                 "source_language": detected_source,
                 "target_language": target_lang,
-                "original_text": text
+                "original_text": text,
+                "detected_language": detected_source
             }
             
             logger.info(f"Translated from {detected_source} to {target_lang}")
@@ -100,6 +104,7 @@ class TranslationService:
                 "source_language": source_lang,
                 "target_language": target_lang,
                 "original_text": text,
+                "detected_language": source_lang,
                 "error": str(e)
             }
 

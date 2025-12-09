@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Send,
   Sprout,
@@ -16,13 +18,19 @@ import {
   Image,
   FileText,
   Loader2,
+  Languages,
+  LogOut,
+  Shield,
 } from "lucide-react";
 import * as api from "../services/api";
 
 export default function AgriChatbot() {
+  const { user, logout, isSuperAdmin } = useAuth();
+  const navigate = useNavigate();
+  
   // Session ID for current conversation
   const [sessionId, setSessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
-  const [userId] = useState("anonymous"); // Can be changed for user authentication
+  const [userId] = useState(user?.id || "anonymous");
   
   const [messages, setMessages] = useState([
     {
@@ -40,6 +48,13 @@ export default function AgriChatbot() {
   const [showSettings, setShowSettings] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [queryMode, setQueryMode] = useState("agent"); // 'llm', 'rag', 'agent'
+  
+  // Translation settings
+  const [selectedLanguage, setSelectedLanguage] = useState("en"); // User's preferred language
+  const [autoTranslateInput, setAutoTranslateInput] = useState(false); // Translate user input to English
+  const [autoTranslateOutput, setAutoTranslateOutput] = useState(false); // Translate bot response to user's language
+  const [isTranslating, setIsTranslating] = useState(false);
+  
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const [previousChats, setPreviousChats] = useState([]); // Will be loaded from MongoDB
@@ -196,10 +211,31 @@ export default function AgriChatbot() {
   const handleSend = async (text = input) => {
     if (!text.trim() && attachedFiles.length === 0) return;
 
+    let originalText = text.trim();
+    let processedText = originalText;
+    let translatedInput = null;
+
+    // Auto-translate input if enabled and language is not English
+    if (autoTranslateInput && selectedLanguage !== "en" && !attachedFiles.some(f => f.type === "image")) {
+      setIsTranslating(true);
+      try {
+        const translateResponse = await api.translateText(originalText, selectedLanguage, "en");
+        if (translateResponse.success && translateResponse.data?.translated_text) {
+          processedText = translateResponse.data.translated_text;
+          translatedInput = processedText;
+          console.log(`🌐 Translated input (${selectedLanguage} → en):`, processedText);
+        }
+      } catch (error) {
+        console.error("Translation failed:", error);
+      }
+      setIsTranslating(false);
+    }
+
     const userMessage = {
       id: messages.length + 1,
       type: "user",
-      text: text.trim(),
+      text: originalText,
+      translatedText: translatedInput,
       files: [...attachedFiles],
       timestamp: new Date(),
     };
@@ -239,9 +275,9 @@ export default function AgriChatbot() {
       } else {
         // Use selected query mode
         if (queryMode === "llm") {
-          response = await api.askQuestion(text.trim(), "direct");
+          response = await api.askQuestion(processedText, "direct");
         } else if (queryMode === "rag") {
-          response = await api.queryRAG(text.trim(), 5);
+          response = await api.queryRAG(processedText, 5);
           // Format RAG response
           const documents = response.data?.documents || [];
           let botText = response.data?.answer || "Here are the relevant documents:\n\n";
@@ -263,7 +299,7 @@ export default function AgriChatbot() {
           return;
         } else {
           // Default: use agent
-          response = await api.queryAgent(text.trim(), "auto", 5);
+          response = await api.queryAgent(processedText, "auto", 5);
         }
 
         const botText = response.answer || response.data?.answer || response.final_answer || response.data?.final_answer || "I apologize, but I couldn't process your request.";
@@ -274,10 +310,44 @@ export default function AgriChatbot() {
           displayText += `\n\n🔧 **Tools used:** ${toolsUsed.join(", ")}`;
         }
 
+        // Auto-translate output if enabled and language is not English
+        let translatedOutput = null;
+        console.log(`🔍 Translation check: autoTranslateOutput=${autoTranslateOutput}, selectedLanguage=${selectedLanguage}`);
+        
+        if (autoTranslateOutput && selectedLanguage !== "en") {
+          setIsTranslating(true);
+          console.log(`🌐 Starting output translation: ${displayText.substring(0, 50)}...`);
+          try {
+            const translateResponse = await api.translateText(displayText, "en", selectedLanguage);
+            console.log(`🌐 Translation API response:`, translateResponse);
+            console.log(`🔍 Response structure:`, JSON.stringify(translateResponse, null, 2));
+            console.log(`🔍 Has success?`, translateResponse.success);
+            console.log(`🔍 Has data?`, translateResponse.data);
+            console.log(`🔍 Has translated_text?`, translateResponse.data?.translated_text);
+            
+            if (translateResponse.success && translateResponse.data?.translated_text) {
+              translatedOutput = translateResponse.data.translated_text;
+              console.log(`✅ Translated output (en → ${selectedLanguage}):`, translatedOutput);
+              console.log(`📊 Original length: ${displayText.length}, Translated length: ${translatedOutput.length}`);
+              console.log(`🔤 First 100 chars of translation:`, translatedOutput.substring(0, 100));
+              displayText = translatedOutput; // Use translated text
+            } else {
+              console.warn(`⚠️ Translation response missing data:`, translateResponse);
+              console.warn(`⚠️ Full response:`, JSON.stringify(translateResponse, null, 2));
+            }
+          } catch (error) {
+            console.error("❌ Output translation failed:", error);
+          }
+          setIsTranslating(false);
+        } else {
+          console.log(`ℹ️ Skipping output translation (enabled: ${autoTranslateOutput}, lang: ${selectedLanguage})`);
+        }
+
         const botMessage = {
           id: messages.length + 2,
           type: "bot",
           text: displayText,
+          originalText: translatedOutput ? botText : null,
           timestamp: new Date(),
           data: response.data,
         };
@@ -378,17 +448,69 @@ export default function AgriChatbot() {
                   <option value="rag">RAG Search</option>
                 </select>
               </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Language
+                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <Languages className="w-4 h-4 text-green-400" />
+                  Preferred Language
                 </label>
-                <select className="w-full bg-gray-700 border border-green-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-green-500">
-                  <option>English</option>
-                  <option>Hindi</option>
-                  <option>Telugu</option>
-                  <option>Tamil</option>
+                <select 
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="w-full bg-gray-700 border border-green-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-green-500"
+                >
+                  <option value="en">English</option>
+                  <option value="hi">हिन्दी (Hindi)</option>
+                  <option value="te">తెలుగు (Telugu)</option>
+                  <option value="ta">தமிழ் (Tamil)</option>
+                  <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                  <option value="ml">മലയാളം (Malayalam)</option>
+                  <option value="mr">मराठी (Marathi)</option>
+                  <option value="bn">বাংলা (Bengali)</option>
+                  <option value="gu">ગુજરાતી (Gujarati)</option>
+                  <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
                 </select>
               </div>
+
+              {selectedLanguage !== "en" && (
+                <>
+                  <div className="pt-2 border-t border-green-800">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div>
+                        <span className="text-sm font-medium text-gray-300">Auto-translate Input</span>
+                        <p className="text-xs text-gray-500 mt-1">Translate your messages to English before sending</p>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={autoTranslateInput}
+                          onChange={(e) => setAutoTranslateInput(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-green-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div>
+                        <span className="text-sm font-medium text-gray-300">Auto-translate Output</span>
+                        <p className="text-xs text-gray-500 mt-1">Translate bot responses to your language</p>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={autoTranslateOutput}
+                          onChange={(e) => setAutoTranslateOutput(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-green-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                      </div>
+                    </label>
+                  </div>
+                </>
+              )}
             </div>
             <div className="p-6 border-t border-green-800">
               <button
@@ -572,9 +694,46 @@ export default function AgriChatbot() {
             <div className="bg-green-700/30 p-2 rounded-full">
               <Sprout className="w-6 h-6 text-green-400" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-bold">ShizishanGPT</h1>
               <p className="text-sm text-green-300">Your AI farming companion</p>
+            </div>
+            {selectedLanguage !== "en" && (
+              <div className="flex items-center gap-2 bg-green-700/20 px-3 py-1.5 rounded-lg border border-green-700/50">
+                <Languages className="w-4 h-4 text-green-400" />
+                <span className="text-xs font-medium text-green-300">
+                  {selectedLanguage.toUpperCase()}
+                </span>
+                {(autoTranslateInput || autoTranslateOutput) && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                )}
+              </div>
+            )}
+            
+            {/* User Info and Actions */}
+            <div className="flex items-center gap-2">
+              {user && (
+                <div className="text-right mr-2">
+                  <p className="text-sm font-medium text-white">{user.full_name}</p>
+                  <p className="text-xs text-green-300">{user.email}</p>
+                </div>
+              )}
+              {isSuperAdmin && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="p-2 hover:bg-green-700/30 rounded-lg transition-all duration-300 text-green-400"
+                  title="Admin Dashboard"
+                >
+                  <Shield className="w-5 h-5" />
+                </button>
+              )}
+              <button
+                onClick={logout}
+                className="p-2 hover:bg-red-700/30 rounded-lg transition-all duration-300 text-red-400"
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
@@ -605,6 +764,22 @@ export default function AgriChatbot() {
                     </div>
                   )}
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                  {message.translatedText && message.type === "user" && (
+                    <div className="mt-2 pt-2 border-t border-green-600/30">
+                      <div className="flex items-center gap-1 text-xs text-green-300/70">
+                        <Languages className="w-3 h-3" />
+                        <span>Translated to English</span>
+                      </div>
+                    </div>
+                  )}
+                  {message.originalText && message.type === "bot" && (
+                    <div className="mt-2 pt-2 border-t border-green-700/30">
+                      <div className="flex items-center gap-1 text-xs text-gray-400">
+                        <Languages className="w-3 h-3" />
+                        <span>Auto-translated</span>
+                      </div>
+                    </div>
+                  )}
                   {message.files && message.files.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {message.files.map((file) => (
@@ -642,12 +817,14 @@ export default function AgriChatbot() {
               </div>
             ))}
 
-            {isTyping && (
+            {(isTyping || isTranslating) && (
               <div className="flex justify-start">
                 <div className="bg-gray-800 border-2 border-green-800 rounded-2xl rounded-bl-sm p-4 shadow-lg">
                   <div className="flex items-center gap-2 mb-2 text-green-400">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-xs font-semibold">Processing...</span>
+                    {isTranslating ? <Languages className="w-4 h-4 animate-pulse" /> : <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span className="text-xs font-semibold">
+                      {isTranslating ? "Translating..." : "Processing..."}
+                    </span>
                   </div>
                   <div className="flex gap-1">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></div>

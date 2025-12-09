@@ -124,6 +124,9 @@ class YieldPredictionResponse(BaseModel):
     unit: str = "tonnes per hectare"
     confidence: Optional[float] = None
     inputs: Dict
+    agent_analysis: Optional[str] = None
+    agent_tools_used: Optional[List[str]] = None
+    agent_sources: Optional[List] = None
 
 
 class PestDetectionResponse(BaseModel):
