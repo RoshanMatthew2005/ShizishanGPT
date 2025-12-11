@@ -222,7 +222,7 @@ def create_evaluation_word_doc():
     
     doc.add_heading('Performance Metrics', level=3)
     
-    table = doc.add_table(rows=6, cols=3)
+    table = doc.add_table(rows=7, cols=3)
     table.style = 'Light Grid Accent 1'
     
     header_cells = table.rows[0].cells
