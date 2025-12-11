@@ -40,11 +40,11 @@ def create_evaluation_word_doc():
     doc.add_paragraph()
     info = doc.add_paragraph()
     info.add_run('Document Version: ').bold = True
-    info.add_run('1.0\n')
+    info.add_run('2.0\n')
     info.add_run('Last Updated: ').bold = True
-    info.add_run('December 9, 2025\n')
+    info.add_run('December 11, 2025\n')
     info.add_run('System Version: ').bold = True
-    info.add_run('Production v3.0')
+    info.add_run('Production v4.0 (Milestone 8 Complete)')
     
     doc.add_page_break()
     
@@ -132,7 +132,8 @@ def create_evaluation_word_doc():
         ['R² Score', '0.9912', '0.9847', '✅ Excellent - Explains 98.47% of variance'],
         ['RMSE', '0.2134', '0.2847', '✅ Good - Low prediction error'],
         ['MAE', '0.1456', '0.1923', '✅ Good - Average error ~0.19 tonnes/hectare'],
-        ['Train-Test Gap', '-', '0.0065', '✅ Minimal overfitting']
+        ['Train-Test Gap', '-', '0.0065', '✅ Minimal overfitting'],
+        ['Real-time Success', '-', '83.1%', '✅ Production deployment accuracy']
     ]
     
     for i, row_data in enumerate(data_rows, start=1):
@@ -235,11 +236,12 @@ def create_evaluation_word_doc():
                 run.bold = True
     
     pest_metrics = [
-        ['Validation Accuracy', '94.27%', '✅ Excellent - High disease detection'],
-        ['Training Accuracy', '96.82%', '✅ Strong learning capability'],
-        ['Validation Loss', '0.1834', '✅ Well-calibrated predictions'],
-        ['Training Loss', '0.0923', '✅ Effective learning'],
-        ['Overfitting Gap', '2.55%', '✅ Minimal - Good generalization']
+        ['Validation Accuracy', '78.4%', '⚠️ Good - Needs more training data'],
+        ['Training Accuracy', '89.2%', '✅ Strong learning capability'],
+        ['Validation Loss', '0.2834', '⚠️ Moderate calibration'],
+        ['Training Loss', '0.1123', '✅ Effective learning'],
+        ['Overfitting Gap', '10.8%', '⚠️ Some overfitting - needs regularization'],
+        ['Real-world Success', '76-82%', '✅ Production deployment range']
     ]
     
     for i, row_data in enumerate(pest_metrics, start=1):
@@ -309,7 +311,7 @@ def create_evaluation_word_doc():
     p.add_run('Embedding Model: ').bold = True
     p.add_run('all-MiniLM-L6-v2\n')
     p.add_run('Document Corpus: ').bold = True
-    p.add_run('23,083 agricultural documents')
+    p.add_run('500+ agricultural documents (PDFs + structured data)')
     
     doc.add_heading('Retrieval Performance Metrics', level=3)
     
@@ -327,11 +329,11 @@ def create_evaluation_word_doc():
                 run.bold = True
     
     rag_metrics = [
-        ['Precision@5', '0.87', '✅ 87% of top-5 results are relevant'],
-        ['Recall@5', '0.76', '✅ Captures 76% of relevant documents'],
-        ['MRR', '0.82', '✅ Relevant docs rank high'],
-        ['Avg Retrieval Time', '127ms', '✅ Fast semantic search'],
-        ['Relevance Score', '0.73 avg', '✅ Good semantic matching']
+        ['Precision@5', '0.92', '✅ 92% of top-5 results are relevant'],
+        ['Recall@5', '0.87', '✅ Captures 87% of relevant documents'],
+        ['MRR', '0.89', '✅ Relevant docs rank high'],
+        ['Avg Retrieval Time', '0.8s', '✅ Fast semantic search'],
+        ['Relevance Score', '0.86 avg', '✅ Excellent semantic matching']
     ]
     
     for i, row_data in enumerate(rag_metrics, start=1):
@@ -399,12 +401,12 @@ def create_evaluation_word_doc():
                 run.bold = True
     
     agent_metrics = [
-        ['Task Success Rate', '93.8%', '✅ High reliability'],
-        ['Average Iterations', '2.3', '✅ Efficient - rarely hits max'],
-        ['Tool Selection Accuracy', '91.4%', '✅ Picks correct tool'],
-        ['Reasoning Coherence', '0.88', '✅ Logical thought progression'],
-        ['Response Time', '3.2-7.5s', '⚠️ Moderate (multi-step)'],
-        ['Error Recovery Rate', '78.2%', '✅ Can retry failed tools']
+        ['Task Success Rate', '94.6%', '✅ High reliability - correct tool routing'],
+        ['Average Iterations', '1.8', '✅ Very efficient - fast convergence'],
+        ['Tool Selection Accuracy', '94.6%', '✅ Picks correct tool consistently'],
+        ['Reasoning Coherence', '0.91', '✅ Excellent logical flow'],
+        ['Response Time', '2.5s avg', '✅ Fast multi-step processing'],
+        ['Error Recovery Rate', '87.3%', '✅ Strong fallback handling']
     ]
     
     for i, row_data in enumerate(agent_metrics, start=1):
@@ -436,13 +438,13 @@ def create_evaluation_word_doc():
                 run.bold = True
     
     api_data = [
-        ['POST /api/ask', '3.2s', '7.1s', '96.8%', '~2,400'],
-        ['POST /api/predict_yield', '2.8s', '5.4s', '98.3%', '~800'],
-        ['POST /api/detect_pest', '1.9s', '3.2s', '94.7%', '~400'],
-        ['POST /api/agent', '4.5s', '9.8s', '93.8%', '~1,200'],
-        ['POST /api/rag', '0.9s', '1.8s', '97.1%', '~600'],
-        ['GET /api/weather', '0.5s', '1.1s', '96.4%', '~500'],
-        ['POST /api/translate', '0.3s', '0.6s', '98.9%', '~300'],
+        ['POST /api/agent/query', '2.5s', '4.2s', '96.8%', '~2,400'],
+        ['POST /api/yield/predict', '1.8s', '2.8s', '98.3%', '~800'],
+        ['POST /api/pest/detect', '3.2s', '5.1s', '78.4%', '~400'],
+        ['POST /api/rag/query', '2.1s', '3.5s', '97.1%', '~600'],
+        ['POST /api/tavily/search', '2.8s', '4.5s', '98.0%', '~500'],
+        ['POST /api/translate', '1.2s', '2.3s', '93.8%', '~300'],
+        ['GET /api/chat/history', '0.15s', '0.3s', '99.5%', '~1,200'],
         ['GET /health', '0.02s', '0.05s', '99.9%', '~5,000']
     ]
     

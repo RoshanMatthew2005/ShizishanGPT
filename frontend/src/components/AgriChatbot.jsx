@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Send,
   Sprout,
@@ -791,7 +793,23 @@ export default function AgriChatbot() {
                       <span className="text-xs font-semibold">ShizishanGPT</span>
                     </div>
                   )}
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                  {/* Render Markdown for bot messages, plain text for user messages */}
+                  {message.type === "bot" ? (
+                    <div className="text-sm">
+                      <div className="prose-chatbot">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {message.text.split('\n\n🔧')[0]}
+                        </ReactMarkdown>
+                      </div>
+                      {message.text.includes('🔧 **Tools used:**') && (
+                        <div className="mt-3 pt-2 border-t border-gray-700/50 text-xs text-gray-400">
+                          {message.text.split('\n\n🔧')[1] && `🔧 ${message.text.split('🔧 **Tools used:** ')[1]}`}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                  )}
                   {message.translatedText && message.type === "user" && (
                     <div className="mt-2 pt-2 border-t border-green-600/30">
                       <div className="flex items-center gap-1 text-xs text-green-300/70">

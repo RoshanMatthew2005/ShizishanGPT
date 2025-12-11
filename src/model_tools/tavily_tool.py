@@ -121,42 +121,28 @@ class TavilyTool:
             data: Raw Tavily API response
         
         Returns:
-            Formatted text string
+            Formatted text string (content only, no URLs)
         """
-        results_text = f"🔍 Web search results for: \"{query}\"\n\n"
+        results_text = f"Search results for: \"{query}\"\n\n"
         
         # Add AI-generated quick answer if available
         if data.get("answer"):
-            results_text += f"**Quick Answer:**\n{data['answer']}\n\n"
+            results_text += f"Quick Answer: {data['answer']}\n\n"
         
-        # Add detailed sources
-        results_text += "**Detailed Sources:**\n"
+        # Add detailed content (NO URLs or sources)
+        results_text += "Relevant Information:\n\n"
         results = data.get("results", [])
         
         if not results:
             results_text += "No results found.\n"
         else:
             for i, result in enumerate(results[:5], 1):
-                results_text += f"\n{i}. **{result.get('title', 'Untitled')}**\n"
-                
-                # Add content snippet
+                # Add content snippet only (NO title, NO URL)
                 content = result.get('content', '')
                 if content:
                     # Truncate long content
-                    snippet = content[:400] + "..." if len(content) > 400 else content
-                    results_text += f"   {snippet}\n"
-                
-                # Add source URL
-                url = result.get('url', '')
-                if url:
-                    results_text += f"   📎 Source: {url}\n"
-                
-                # Add relevance score if available
-                score = result.get('score')
-                if score:
-                    results_text += f"   📊 Relevance: {score:.2f}\n"
-        
-        results_text += f"\n✓ Found {len(results)} results in {data.get('response_time', 0):.2f}s\n"
+                    snippet = content[:500] + "..." if len(content) > 500 else content
+                    results_text += f"{snippet}\n\n"
         
         return results_text
     

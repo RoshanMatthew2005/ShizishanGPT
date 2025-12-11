@@ -42,39 +42,117 @@ class ToolRouter:
                 "priority": 1  # Highest priority
             },
             
+            # AgriKG (Knowledge Graph for crop relationships - HIGH PRIORITY)
+            {
+                "name": "agri_kg_query",
+                "patterns": [
+                    r"\b(what|which).*(disease|pest).*(affect|attack|damage).*(rice|wheat|maize|corn|potato|tomato|cotton)\b",
+                    r"\b(rice|wheat|maize|corn|potato|tomato|cotton).*(disease|pest|fertilizer)\b",
+                    r"\b(disease|pest).*(rice|wheat|maize|corn|potato|tomato|cotton)\b",
+                    r"\b(fertilizer|fertilizers).*for.*(rice|wheat|maize|corn|potato|tomato|cotton)\b",
+                    r"\b(rice|wheat|maize|corn|potato|tomato|cotton).*(need|require).*(fertilizer|soil)\b",
+                    r"\b(ideal|best|suitable).*(soil|fertilizer).*for.*(rice|wheat|maize|corn|potato|tomato|cotton)\b",
+                    r"\b(control|treat|manage).*(blast|blight|rust|wilt|rot).*(rice|wheat|maize|corn|potato|tomato|cotton)\b"
+                ],
+                "keywords": ["diseases affecting", "pests attacking", "fertilizer for", "soil for",
+                           "rice disease", "wheat disease", "maize disease", "corn disease",
+                           "potato disease", "tomato disease", "cotton disease",
+                           "rice pest", "wheat pest", "cotton pest"],
+                "priority": 2  # High priority for crop-specific relationship queries
+            },
+            
+            # Crop climate recommendation (BEFORE Tavily weather to catch crop queries first)
+            {
+                "name": "crop_climate_recommendation",
+                "patterns": [
+                    r"\b(which|what|best).*(crop).*(temperature|humidity|rainfall|climate)\b",
+                    r"\b(crop).*(for|suitable).*(climate|season|weather|temperature|humidity|rainfall)\b",
+                    r"\b(recommend|suggest).*(crop).*(climate|temperature|humidity|rainfall|season)\b",
+                    r"\b(temperature|humidity|rainfall).*\bN\s*=",  # Climate + NPK parameters together
+                    r"\bN\s*=.*\b(temperature|humidity|rainfall)\b",  # NPK + climate parameters
+                    r"\b(which|what).*(crop).*\b\d+°C\b",  # "which crop" + temperature value
+                    r"\b(which|what).*(crop).*\b\d+\s*mm\b"  # "which crop" + rainfall value
+                ],
+                "keywords": ["which crop", "what crop", "best crop", "recommend crop", "crop for", 
+                           "suitable crop", "season", "crop selection", "plant"],
+                "requires_params": True,
+                "priority": 2  # Same as AgriKG - processed before Tavily weather
+            },
+            
             # Image-based queries
             {
                 "name": "pest_detection",
                 "patterns": [r"\bimage\b", r"\bphoto\b", r"\bpicture\b", r"\.jpg", r"\.png", r"\.jpeg"],
                 "keywords": ["image", "photo", "picture", "leaf", "show"],
-                "priority": 2
+                "priority": 3
             },
             
             # Yield prediction
             {
                 "name": "yield_prediction",
-                "patterns": [r"\byield\b", r"\bproduction\b", r"\bharvest\b", r"\btonnes\b"],
-                "keywords": ["yield", "production", "harvest", "predict", "crop output"],
+                "patterns": [
+                    r"\b(yield|production|harvest|output)\b.*\b(predict|forecast|estimate|expected)\b",
+                    r"\b(predict|forecast|estimate|expected)\b.*\b(yield|production|harvest|output)\b",
+                    r"\b(wheat|rice|maize|corn|cotton|sugarcane).*yield\b",
+                    r"\byield.*\b(wheat|rice|maize|corn|cotton|sugarcane)\b",
+                    r"\b(tonnes|tons|quintals|kg).*\b(production|harvest)\b"
+                ],
+                "keywords": ["yield", "production", "harvest", "predict", "crop output", "forecast", 
+                           "expected", "tonnes", "quintals", "output", "predicting"],
                 "requires_params": True,
-                "priority": 3
-            },
-            
-            # Weather realtime (current conditions)
-            {
-                "name": "weather_realtime",
-                "patterns": [r"\b(weather|temperature|rain|forecast).*(today|now|current)\b", 
-                           r"\b(current|today).*(weather|temperature|rain)\b"],
-                "keywords": ["weather today", "current weather", "forecast", "temperature today", 
-                           "rain today", "soil moisture", "humidity now"],
-                "priority": 3
-            },
-            
-            # Weather prediction (impacts)
-            {
-                "name": "weather_prediction",
-                "patterns": [r"\bweather\b", r"\brainfall\b", r"\btemperature\b", r"\bclimate\b", r"\bdrought\b", r"\bflood\b"],
-                "keywords": ["weather", "rainfall", "temperature", "climate", "drought", "flood", "season"],
                 "priority": 4
+            },
+            
+            # Soil moisture classification (IoT sensors)
+            {
+                "name": "soil_moisture_classification",
+                "patterns": [
+                    r"\b(soil moisture|moisture level|moisture status)\b",
+                    r"\b(dry|wet).*(soil)\b",
+                    r"\b(sensor|IoT).*(moisture|irrigation)\b",
+                    r"\b(irrigate|irrigation).*(now|needed)\b"
+                ],
+                "keywords": ["soil moisture", "moisture", "dry", "wet", "sensor", "IoT", "irrigate"],
+                "requires_params": True,
+                "priority": 4
+            },
+            
+            # Crop nutrient recommendation (11 soil parameters)
+            {
+                "name": "crop_nutrient_recommendation",
+                "patterns": [
+                    r"\b(which crop|what crop|best crop).*(soil|nutrients|NPK)\b",
+                    r"\b(soil test|soil analysis|nutrient).*(crop|recommendation)\b",
+                    r"\b(NPK|nitrogen|phosphorus|potassium).*(crop)\b",
+                    r"\b(recommend|suggest).*(crop).*(soil|nutrients)\b"
+                ],
+                "keywords": ["crop recommendation", "soil test", "nutrients", "NPK", "soil analysis", 
+                           "which crop", "best crop", "micronutrients"],
+                "requires_params": True,
+                "priority": 4
+            },
+            
+            # Soil fertility classification
+            {
+                "name": "soil_fertility_classification",
+                "patterns": [
+                    r"\b(soil fertility|fertility level|soil quality)\b",
+                    r"\b(soil health|soil rating)\b",
+                    r"\b(low|medium|high).*(fertility)\b",
+                    r"\b(classify|check|assess).*(soil|fertility)\b"
+                ],
+                "keywords": ["soil fertility", "fertility level", "soil quality", "soil health", "soil rating"],
+                "requires_params": True,
+                "priority": 4
+            },
+            
+            # Weather queries (use Tavily for real-time weather data)
+            {
+                "name": "tavily_search",
+                "patterns": [r"\b(weather|temperature|rain|forecast|climate)\b"],
+                "keywords": ["weather", "weather today", "current weather", "forecast", "temperature", 
+                           "rain", "rainfall", "climate", "drought", "flood", "humidity", "wind"],
+                "priority": 2  # High priority for weather queries
             },
             
             # Translation
@@ -82,16 +160,16 @@ class ToolRouter:
                 "name": "translation",
                 "patterns": [r"\btranslate\b", r"\bhindi\b", r"\bspanish\b", r"\bfrench\b", r"\blanguage\b"],
                 "keywords": ["translate", "language", "hindi", "spanish", "french", "chinese"],
-                "priority": 4
+                "priority": 5
             },
             
-            # RAG retrieval (general knowledge - LOWER PRIORITY than Tavily)
+            # RAG retrieval (general knowledge - LOWER PRIORITY than Tavily and AgriKG)
             {
                 "name": "rag_retrieval",
                 "patterns": [r"\bwhat is\b", r"\bexplain\b", r"\bdescribe\b"],
                 "keywords": ["what is", "explain", "describe", "define", "concept", "theory"],
                 "min_length": 30,
-                "priority": 5  # Lower than Tavily
+                "priority": 6  # Lower than Tavily and AgriKG
             },
             
             # LLM generation (fallback)
@@ -100,7 +178,7 @@ class ToolRouter:
                 "patterns": [r"\btell me\b", r"\bsummarize\b"],
                 "keywords": ["tell me", "summarize", "explain briefly"],
                 "max_length": 100,
-                "priority": 6  # Lowest priority
+                "priority": 7  # Lowest priority
             }
         ]
     

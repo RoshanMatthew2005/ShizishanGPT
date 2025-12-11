@@ -1,0 +1,56 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                    ShizishanGPT - Quick Start                     ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+📋 PREREQUISITES:
+  1. Python 3.11+  → https://www.python.org/downloads/
+  2. Node.js 18+   → https://nodejs.org/
+  3. Ollama        → https://ollama.ai/download
+
+🚀 SETUP (3 MINUTES):
+
+  Windows PowerShell:
+  ───────────────────
+  .\setup_complete.ps1
+
+  This will automatically:
+  • Install Python packages
+  • Install Node.js packages  
+  • Pull Ollama models
+  • Create .env file
+  • Test installation
+
+🎯 AFTER SETUP:
+
+  1. Edit .env file:
+     - Add your TAVILY_API_KEY (get from tavily.com)
+
+  2. Start the app:
+     .\start_all_services.ps1
+
+  3. Open browser:
+     • Frontend: http://localhost:3000
+     • Backend:  http://localhost:8000/docs
+
+  4. Login:
+     • Username: superadmin
+     • Password: superadmin123
+
+🐛 TROUBLESHOOTING:
+
+  "Python not found"
+  → Reinstall Python, check "Add to PATH"
+
+  "npm not found"  
+  → Reinstall Node.js, restart terminal
+
+  "Ollama connection failed"
+  → Run: ollama pull gemma2:2b
+
+  "Module not found"
+  → Run: pip install -r requirements.txt
+
+📚 FULL DOCUMENTATION:
+  See SETUP_INSTRUCTIONS.md for detailed guide
+
+🎉 ENJOY ShizishanGPT!

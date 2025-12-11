@@ -29,6 +29,7 @@ from .routers.router_conversations import router as conversations_router
 from .routers.router_weather import router as weather_router
 from .routers.router_tavily import router as tavily_router  # Tavily search integration
 from .routers.router_auth import router as auth_router  # Authentication
+from .routers.router_kg import router as kg_router  # Knowledge Graph
 
 # Import model loaders
 from .models.load_yield_model import load_yield_model
@@ -194,6 +195,7 @@ app.include_router(conversations_router)
 app.include_router(weather_router)  # Weather API
 app.include_router(tavily_router)  # Tavily Search API
 app.include_router(auth_router)  # Authentication API
+app.include_router(kg_router)  # Knowledge Graph API
 
 
 # Root endpoint

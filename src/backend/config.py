@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # Tavily Search API Configuration
     TAVILY_API_KEY: Optional[str] = None
     
+    # Neo4j Configuration (Agriculture Knowledge Graph)
+    NEO4J_URI: str = "bolt://localhost:7687"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: Optional[str] = None
+    
     # Gemma 2 / Ollama Configuration
     USE_GEMMA_FALLBACK: bool = False
     GEMMA_MODEL: str = "gemma2:9b"

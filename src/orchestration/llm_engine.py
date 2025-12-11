@@ -54,7 +54,7 @@ class LLMEngine:
         self.gemma_params = {
             'temperature': 0.7,
             'top_p': 0.9,
-            'max_tokens': 1024
+            'max_tokens': 512
         }
         
     def load(self) -> bool:
@@ -120,7 +120,7 @@ class LLMEngine:
             response = requests.post(
                 f"{self.ollama_url}/api/generate",
                 json=payload,
-                timeout=30
+                timeout=120  # Increased timeout for larger models like gemma2:9b
             )
             
             if response.status_code == 200:

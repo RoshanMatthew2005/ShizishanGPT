@@ -57,9 +57,12 @@ function formatValidationError(errors) {
  */
 function formatQueryResponse(backendData) {
   // Handle both agent responses and direct LLM responses
-  const answer = backendData.final_answer || backendData.answer || backendData.response || '';
+  let answer = backendData.final_answer || backendData.answer || backendData.response || '';
   const tools = backendData.tools_used || [];
   const executionTime = backendData.execution_time || 0;
+  
+  // Ensure proper Markdown formatting for frontend
+  answer = ensureProperMarkdownFormatting(answer);
   
   return {
     success: true,
@@ -71,6 +74,27 @@ function formatQueryResponse(backendData) {
     sources: backendData.sources || null,
     timestamp: new Date().toISOString()
   };
+}
+
+/**
+ * Ensure proper Markdown formatting for frontend rendering
+ * @param {String} text - Raw text from backend
+ * @returns {String} - Properly formatted Markdown
+ */
+function ensureProperMarkdownFormatting(text) {
+  if (!text) return text;
+  
+  // Ensure line breaks are preserved
+  // React Markdown needs \n\n for paragraph breaks
+  
+  // Already has proper line breaks from backend, just ensure consistency
+  // Remove any \r characters (Windows line endings)
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  // Ensure no trailing spaces that might break formatting
+  text = text.split('\n').map(line => line.trimEnd()).join('\n');
+  
+  return text;
 }
 
 /**

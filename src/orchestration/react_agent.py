@@ -73,28 +73,52 @@ ALWAYS use tavily_search when the query contains ANY of these:
 
 **PRIORITY 2: Yield Prediction Tool**
 
-If the question contains rainfall, crop yield, production, state, irrigation + numbers → call yield_prediction.
+Use yield_prediction when the question asks about crop yield/production for a specific crop and location:
+   - "Predict wheat yield in Punjab"
+   - "What will be rice production in Tamil Nadu?"
+   - "Expected harvest for maize in Maharashtra"
+   - "Crop output for cotton with 800mm rainfall"
+   
+Required information:
+   - Crop name (wheat, rice, maize, etc.)
+   - State/region (Punjab, Tamil Nadu, etc.)
+   - Optional: Rainfall amount, irrigation details
+   
+Examples that MUST use yield_prediction:
+   - "Predicting Wheat Yield in Punjab with 800mm Rainfall" → yield_prediction
+   - "What will be the rice yield in Telangana?" → yield_prediction
+   - "Expected maize production in Karnataka" → yield_prediction
+   - "Harvest prediction for cotton in Gujarat" → yield_prediction
 
 **PRIORITY 3: Pest Detection Tool**
 
 If the question describes crop symptoms, diseases, pests, insects, leaf color 
 changes, or damage → call pest_detection.
 
-**PRIORITY 4: Weather Realtime Tool**
+**PRIORITY 4: Knowledge Graph (Structured Crop Relationships)**
 
-If the question asks about current weather, today's temperature, rainfall today,
-weather forecast, soil moisture, humidity, wind speed, or "what is the weather" 
-→ call weather_realtime.
+Use agri_kg_query when the query asks about relationships between crops and:
+   - Diseases: "What diseases affect rice?", "diseases in wheat", "rice blast"
+   - Pests: "Which pests attack maize?", "pests in cotton", "aphids"
+   - Fertilizers: "What fertilizers does wheat need?", "fertilizer for rice"
+   - Soil: "What is ideal soil for maize?", "soil type for crops"
+   - Treatments: "How to control blast disease?", "treatment for pests"
 
-For weather impact questions (will weather affect crops?):
-   a. First call weather_realtime to get current/forecast data
-   b. Then call weather_prediction to analyze agricultural impacts
-   c. Finally call llm_generation to synthesize the answer
+AgriKG provides instant structured answers from the knowledge graph for:
+- Crop-disease relationships
+- Crop-pest relationships
+- Crop-fertilizer requirements
+- Ideal soil types for crops
+- Disease/pest treatments
 
-**PRIORITY 5: Weather Prediction Tool**
+**PRIORITY 5: Weather Queries (Use Tavily Search)**
 
-If the question asks about weather impacts on crops, drought risks, flood risks,
-or agricultural weather patterns → call weather_prediction.
+For ALL weather-related questions → use tavily_search:
+   - "What's the weather in Punjab today?" → tavily_search
+   - "Will it rain tomorrow?" → tavily_search  
+   - "Weather forecast for next week" → tavily_search
+   - "How will drought affect crops?" → tavily_search → llm_generation
+   - "Temperature and rainfall patterns" → tavily_search
 
 **PRIORITY 6: RAG Retrieval Tool (Static Knowledge)**
 
@@ -159,6 +183,24 @@ After you receive the tool's JSON output:
 ------------------------------------------------------------
 
 Your final answer to the user must be friendly, agricultural, and simplified.
+
+**FORMATTING REQUIREMENTS:**
+- Use proper spacing between sections and bullet points
+- Add blank lines between major sections (e.g., between **1. Section** and **2. Section**)
+- Add blank lines before and after nested bullet points for readability
+- Structure with clear headings using **bold** for main sections
+- Use * for bullet points with proper indentation
+- Ensure nested points are indented with proper spacing
+- Example format:
+  **1. Main Section:**
+  
+  * Point one with details
+  * Point two with details
+  
+  **2. Another Section:**
+  
+  * First point
+  * Second point
 
 Begin your reasoning.
 Do not show thoughts to the user.
@@ -350,6 +392,210 @@ Tool choice:"""
             return match.group(1).strip()
         return None
     
+    def _clean_citations(self, text: str) -> str:
+        """
+        Remove citation markers, source references, and page numbers from text.
+        
+        Args:
+            text: Text with citation markers and source references
+            
+        Returns:
+            Text with citations removed
+        """
+        if not text:
+            return text
+        
+        # Remove source citations: (Source: "...", pg. 264), (Source: "...")
+        text = re.sub(r'\(Source:\s*[^)]+\)', '', text, flags=re.IGNORECASE)
+        
+        # Remove source citations in square brackets: [Source: "..."]
+        text = re.sub(r'\[Source:\s*[^\]]+\]', '', text, flags=re.IGNORECASE)
+        
+        # Remove inline source references: Source: "..." or Source: Title
+        text = re.sub(r'Source:\s*["\']?[^"\'\n]+["\']?', '', text, flags=re.IGNORECASE)
+        
+        # Remove citation markers in square brackets: [1], [2], [3], etc.
+        # Matches [number] or [number, number] patterns
+        text = re.sub(r'\s*\[\d+(?:,\s*\d+)*\]', '', text)
+        
+        # Remove page references: "pg. 123", "page 123", "p. 123", "pp. 123-456"
+        text = re.sub(r'\b(?:pg|page|p|pp)\.?\s*\d+(?:\s*-\s*\d+)?\b', '', text, flags=re.IGNORECASE)
+        
+        # Remove chapter/section references in text
+        text = re.sub(r'\b(?:Chapter|Ch|Section|Sec)\.?\s*[\d.]+\b', '', text, flags=re.IGNORECASE)
+        
+        # Remove any double spaces created by removal
+        text = re.sub(r'\s{2,}', ' ', text)
+        
+        # Clean up spaces before punctuation
+        text = re.sub(r'\s+([.,!?;:])', r'\1', text)
+        
+        # Remove empty parentheses left after cleaning
+        text = re.sub(r'\(\s*\)', '', text)
+        
+        # Clean up multiple punctuation marks
+        text = re.sub(r'([.,!?;:])\s*([.,!?;:])', r'\1', text)
+        
+        return text.strip()
+    
+    def _clean_plain_text_formatting(self, text: str) -> str:
+        """
+        Clean up plain text formatting - remove markdown symbols and fix spacing.
+        Designed for LLM output that should be plain text without markdown.
+        
+        Args:
+            text: Text potentially containing markdown formatting
+            
+        Returns:
+            Clean plain text with proper spacing
+        """
+        if not text:
+            return text
+        
+        # Remove markdown bold markers: **text** → text
+        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+        
+        # Remove markdown headers: ## Header → Header
+        text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+        
+        # Normalize bullet points to use hyphens
+        text = re.sub(r'^\s*[*•]\s+', '- ', text, flags=re.MULTILINE)
+        
+        # Fix excessive spacing between sections (max 1 blank line)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        # Remove trailing whitespace on each line
+        lines = [line.rstrip() for line in text.split('\n')]
+        text = '\n'.join(lines)
+        
+        # Remove spaces before punctuation
+        text = re.sub(r'\s+([.,!?;:])', r'\1', text)
+        
+        # Ensure single space after punctuation
+        text = re.sub(r'([.,!?;:])\s*', r'\1 ', text)
+        text = re.sub(r'([.,!?;:])\s{2,}', r'\1 ', text)
+        
+        # Fix common spacing issues around colons in headers
+        # "HEADER :" → "HEADER:"
+        text = re.sub(r'([A-Z\s]+)\s+:', r'\1:', text)
+        
+        return text.strip()
+    
+    def _format_markdown_output(self, text: str) -> str:
+        """
+        Ensure proper markdown spacing without destroying structure.
+        Only adds spacing between sections - does NOT remove markdown symbols.
+        
+        Args:
+            text: Markdown text from LLM
+            
+        Returns:
+            Clean markdown with proper spacing
+        """
+        if not text:
+            return text
+        
+        lines = text.split('\n')
+        formatted = []
+        prev_was_blank = True
+        prev_was_heading = False
+        prev_was_bullet = False
+        prev_was_numbered = False
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip if empty
+            if not stripped:
+                # Keep track but don't add yet
+                prev_was_blank = True
+                continue
+            
+            # Detect line types
+            is_heading = stripped.startswith('#')
+            is_bullet = stripped.startswith('-') or stripped.startswith('*')
+            is_numbered = bool(re.match(r'^\d+\.', stripped))
+            is_text = not (is_heading or is_bullet or is_numbered)
+            
+            # Add blank line before heading (unless first line)
+            if is_heading and formatted and not prev_was_blank:
+                formatted.append('')
+            
+            # Add blank line before numbered list from text
+            if is_numbered and prev_was_text and not prev_was_blank:
+                formatted.append('')
+            
+            # Add blank line before bullet list from text/heading
+            if is_bullet and (prev_was_text or prev_was_heading) and not prev_was_blank:
+                formatted.append('')
+            
+            # Add blank line before text from bullet/numbered
+            if is_text and (prev_was_bullet or prev_was_numbered) and not prev_was_blank:
+                formatted.append('')
+            
+            # Add the line as-is (preserve original content)
+            formatted.append(line.rstrip())
+            
+            # Update state
+            prev_was_blank = False
+            prev_was_heading = is_heading
+            prev_was_bullet = is_bullet
+            prev_was_numbered = is_numbered
+            prev_was_text = is_text
+        
+        result = '\n'.join(formatted)
+        
+        # Only clean up excessive blank lines (more than 2)
+        result = re.sub(r'\n{3,}', '\n\n', result)
+        
+        return result.strip()
+    
+    def _ensure_proper_spacing(self, text: str) -> str:
+        """
+        Legacy spacing function - now replaced by _format_markdown_output.
+        Kept for backwards compatibility.
+        """
+        return self._format_markdown_output(text)
+    
+    def _final_markdown_cleanup(self, text: str) -> str:
+        """
+        Final light cleanup - only remove duplicates and excessive whitespace.
+        Does NOT modify markdown structure or symbols.
+        
+        Args:
+            text: Formatted Markdown text
+            
+        Returns:
+            Clean markdown
+        """
+        if not text:
+            return text
+        
+        lines = text.split('\n')
+        cleaned_lines = []
+        prev_line = None
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip exact duplicate consecutive lines only
+            if prev_line and stripped and stripped == prev_line:
+                continue
+            
+            cleaned_lines.append(line)
+            if stripped:  # Only update prev_line if current line has content
+                prev_line = stripped
+        
+        text = '\n'.join(cleaned_lines)
+        
+        # Clean up excessive blank lines (max 2 consecutive)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        # Remove trailing whitespace on each line (but preserve line structure)
+        text = '\n'.join(line.rstrip() for line in text.split('\n'))
+        
+        return text.strip()
+    
     def _execute_tool(self, tool_name: str, tool_input: Any) -> Dict[str, Any]:
         """
         Execute a tool with the given input.
@@ -435,65 +681,6 @@ Answer:"""
                     parsed_input.get("text", ""),
                     parsed_input.get("target_lang", "en")
                 )
-            elif tool_name == "weather_realtime":
-                # weather_realtime is a function, not a class
-                # Import geocoding utilities
-                import sys
-                from pathlib import Path
-                project_root = Path(__file__).resolve().parent.parent.parent
-                if str(project_root) not in sys.path:
-                    sys.path.insert(0, str(project_root))
-                    
-                from src.backend.utils.geocoding import is_valid_location, search_location
-                
-                # Extract location from query - improved regex
-                query_text = parsed_input.get("query", tool_input if isinstance(tool_input, str) else "")
-                
-                self._log(f"🔍 Query text for location extraction: '{query_text}'", "INFO")
-                
-                # Try multiple patterns to find location
-                location = None
-                patterns = [
-                    r'weather\s+(?:in|at|for)\s+([A-Za-z\s]+?)(?:\s+(?:today|this week|forecast|now|\d+\s*days?)|[?,.]|$)',
-                    r'(?:in|at|for)\s+([A-Za-z\s]+?)(?:\s+(?:weather|today|this week|forecast|\d+\s*days?)|[?,.]|$)',
-                    r'([A-Za-z\s]+?)(?:\s+weather|\s+today)',
-                ]
-                
-                for pattern in patterns:
-                    location_match = re.search(pattern, query_text, re.IGNORECASE)
-                    if location_match:
-                        location = location_match.group(1).strip()
-                        # Validate it's a known location
-                        if is_valid_location(location):
-                            self._log(f"📍 Extracted location: {location}", "INFO")
-                            break
-                        # Try searching for similar
-                        matches = search_location(location)
-                        if matches:
-                            location = matches[0]
-                            self._log(f"📍 Found similar location: {location}", "INFO")
-                            break
-                
-                # Fallback to Maharashtra if no location found
-                if not location:
-                    location = "Maharashtra"
-                    self._log(f"📍 No location found, using fallback: {location}", "INFO")
-                
-                # Extract days
-                days_match = re.search(r'(\d+)\s*days?', query_text, re.IGNORECASE)
-                days = int(days_match.group(1)) if days_match else 7
-                days = min(max(days, 1), 16)  # Clamp between 1 and 16
-                
-                self._log(f"🌤️  Calling weather tool: location={location}, days={days}", "INFO")
-                
-                # Call the function
-                weather_result = tool(location, days)
-                result = {
-                    "success": True,
-                    "result": weather_result,
-                    "location": location,
-                    "days": days
-                }
             elif tool_name == "yield_prediction":
                 # Pass the original query for intelligent parsing
                 query_text = parsed_input.get("query", tool_input if isinstance(tool_input, str) else "")
@@ -509,6 +696,10 @@ Answer:"""
                 max_results = parsed_input.get("max_results", 5) if isinstance(parsed_input, dict) else 5
                 search_depth = parsed_input.get("search_depth", "basic") if isinstance(parsed_input, dict) else "basic"
                 result = tool.search(query_text, max_results, search_depth)
+            elif tool_name == "agri_kg_query":
+                # Extract query from parsed input for Knowledge Graph
+                query_text = parsed_input.get("query", tool_input if isinstance(tool_input, str) else "")
+                result = tool.run(query=query_text)
             elif isinstance(parsed_input, dict):
                 result = tool.run(**parsed_input)
             else:
@@ -652,17 +843,38 @@ Answer:"""
                         final_answer = observation
                         break
                 
-                # For other prediction tools, stop immediately with their result  
-                if result.get("success") and tool_to_use in ["weather_prediction", "weather_realtime"]:
-                    final_answer = observation
-                    self._log(f"✅ Got successful result from {tool_to_use}, using it as final answer", "SUCCESS")
-                    break
+                # No special handling needed - removed weather_prediction and weather_realtime tools
                 
                 # For Tavily search, pass results to LLM for better synthesis
                 if result.get("success") and tool_to_use == "tavily_search":
                     self._log(f"✅ Got Tavily results, now calling LLM for synthesis", "INFO")
-                    # Directly call LLM with Tavily context
-                    llm_result = self._execute_tool("llm_generation", query)
+                    
+                    # Extract the actual content from the result
+                    tavily_content = result.get("output", observation)
+                    
+                    synthesis_prompt = f"""You are helping a farmer with their question. Use the search results below to provide a comprehensive, practical answer.
+
+FARMER'S QUESTION:
+{query}
+
+SEARCH RESULTS:
+{tavily_content}
+
+YOUR TASK:
+Write a clear, detailed answer that directly addresses the farmer's question. Use the information from the search results to provide practical, actionable advice.
+
+FORMATTING GUIDELINES:
+- Use proper markdown formatting with ## for sections and ### for subsections
+- Organize information into numbered lists (1., 2., 3.) for main topics
+- Use bullet points (-) for specific details, examples, or sub-points
+- Put blank lines between major sections
+- Use **bold** for emphasis on key terms
+- Be specific with measurements, timings, and methods
+- Focus on practical implementation
+
+Keep your answer comprehensive (200-400 words) and farmer-friendly. Do NOT mention sources or include citations."""
+                    
+                    llm_result = self._execute_tool("llm_generation", synthesis_prompt)
                     tools_used.add("llm_generation")
                     if llm_result.get("success"):
                         final_answer = self._format_tool_result(llm_result, "llm_generation")
@@ -676,8 +888,34 @@ Answer:"""
                 # For RAG retrieval, pass results to LLM for better synthesis
                 if result.get("success") and tool_to_use == "rag_retrieval":
                     self._log(f"✅ Got RAG results, now calling LLM for synthesis", "INFO")
-                    # Directly call LLM with RAG context in observations
-                    llm_result = self._execute_tool("llm_generation", query)
+                    
+                    # Extract the actual content from the result
+                    rag_content = result.get("output", observation)
+                    
+                    synthesis_prompt = f"""You are helping a farmer with their question. Use the retrieved agricultural knowledge below to provide a comprehensive, practical answer.
+
+FARMER'S QUESTION:
+{query}
+
+RETRIEVED AGRICULTURAL KNOWLEDGE:
+{rag_content}
+
+YOUR TASK:
+Write a clear, detailed answer that directly addresses the farmer's question. Use the information from the retrieved documents to provide practical, actionable advice. Synthesize the information into a coherent response.
+
+FORMATTING GUIDELINES:
+- Use proper markdown formatting with ## for sections and ### for subsections
+- Organize information into numbered lists (1., 2., 3.) for main topics
+- Use bullet points (-) for specific details, techniques, or examples
+- Put blank lines between major sections
+- Use **bold** for emphasis on key terms
+- Be specific with measurements, timings, application rates, and methods
+- Include practical implementation steps
+- Focus on real-world farming applications
+
+Keep your answer comprehensive (200-400 words) and farmer-friendly. Do NOT mention document sources, page numbers, or include citations."""
+                    
+                    llm_result = self._execute_tool("llm_generation", synthesis_prompt)
                     tools_used.add("llm_generation")
                     if llm_result.get("success"):
                         final_answer = self._format_tool_result(llm_result, "llm_generation")
@@ -688,13 +926,300 @@ Answer:"""
                             "iteration": iteration + 0.5,  # Sub-step
                             "thought": "I should synthesize the RAG results into a clear answer",
                             "action": "llm_generation",
-                            "action_input": query,
+                            "action_input": synthesis_prompt,
                             "observation": final_answer,
                             "success": True
                         })
                         break
                     else:
                         # Fallback to raw RAG results
+                        final_answer = observation
+                        break
+                
+                # For AgriKG query, pass results to LLM for better synthesis
+                if result.get("success") and tool_to_use == "agri_kg_query":
+                    self._log(f"✅ Got AgriKG results, now calling LLM for synthesis", "INFO")
+                    
+                    # Extract the actual content from the result
+                    kg_content = result.get("output", observation)
+                    
+                    synthesis_prompt = f"""You are helping a farmer with their question. Use the agricultural knowledge graph data below to provide a comprehensive, practical answer.
+
+FARMER'S QUESTION:
+{query}
+
+KNOWLEDGE GRAPH DATA:
+{kg_content}
+
+YOUR TASK:
+Write a clear, detailed answer that directly addresses the farmer's question. Use the structured agricultural knowledge to provide practical, actionable advice. Explain relationships and connections between concepts.
+
+FORMATTING GUIDELINES:
+- Use proper markdown formatting with ## for sections and ### for subsections
+- Organize information into numbered lists (1., 2., 3.) for main topics
+- Use bullet points (-) for specific details, relationships, or examples
+- Put blank lines between major sections
+- Use **bold** for emphasis on key terms
+- Be specific with agricultural relationships and recommendations
+- Focus on practical farming applications
+
+Keep your answer comprehensive (200-400 words) and farmer-friendly. Do NOT mention sources or include citations."""
+                    
+                    llm_result = self._execute_tool("llm_generation", synthesis_prompt)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM synthesized AgriKG results", "SUCCESS")
+                        
+                        # Add LLM step to reasoning
+                        reasoning_steps.append({
+                            "iteration": iteration + 0.5,  # Sub-step
+                            "thought": "I should synthesize the AgriKG results into a clear answer",
+                            "action": "llm_generation",
+                            "action_input": synthesis_prompt,
+                            "observation": final_answer,
+                            "success": True
+                        })
+                        break
+                    else:
+                        # Fallback to raw AgriKG results
+                        final_answer = observation
+                        break
+                
+                # For Crop Climate Recommendation, pass results to LLM for detailed synthesis
+                if result.get("success") and tool_to_use == "crop_climate_recommendation":
+                    self._log(f"✅ Got crop climate recommendation, now calling LLM for synthesis", "INFO")
+                    
+                    # Extract the actual content from the result
+                    model_output = result.get("output", observation)
+                    
+                    synthesis_prompt = f"""You are an agricultural advisor helping a farmer choose the best crop. Use the machine learning model prediction below to provide comprehensive farming advice.
+
+FARMER'S QUESTION:
+{query}
+
+CROP CLIMATE RECOMMENDATION MODEL OUTPUT:
+{model_output}
+
+YOUR TASK:
+Provide a detailed, practical recommendation that helps the farmer make an informed decision. Explain WHY the recommended crop is suitable, analyze the climate conditions, and provide actionable farming advice.
+
+REQUIRED SECTIONS:
+
+1. RECOMMENDED CROP
+- State the top crop with confidence level
+- Explain specifically why this crop is ideal for the given temperature, humidity, rainfall, and soil nutrients
+- Mention expected benefits and yield potential
+
+2. CLIMATE SUITABILITY ANALYSIS
+- Temperature: Analyze how the given temperature suits this crop
+- Humidity: Explain the humidity requirements and current suitability
+- Rainfall: Assess if the rainfall pattern is adequate for this crop
+
+3. ALTERNATIVE OPTIONS
+- List 2-3 alternative crops with brief explanations of their suitability
+- Mention any trade-offs compared to the top recommendation
+
+4. PRACTICAL FARMING GUIDANCE
+- Best planting season and timing
+- Soil preparation requirements
+- Irrigation and water management tips
+- Expected growth duration
+
+5. IMPORTANT CONSIDERATIONS
+- Any weather-related risks or precautions
+- Common challenges with this crop in similar conditions
+- Tips to maximize yield
+
+FORMATTING: Use markdown with ## for main sections and ### for subsections. Use numbered lists (1., 2., 3.) and bullet points (-) for details. Use **bold** for emphasis. Put blank lines between sections. Target 250-350 words."""
+                    
+                    llm_result = self._execute_tool("llm_generation", synthesis_prompt)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM synthesized crop climate recommendation", "SUCCESS")
+                        break
+                    else:
+                        final_answer = observation
+                        break
+                
+                # For Crop Nutrient Recommendation, pass results to LLM for detailed synthesis
+                if result.get("success") and tool_to_use == "crop_nutrient_recommendation":
+                    self._log(f"✅ Got crop nutrient recommendation, now calling LLM for synthesis", "INFO")
+                    
+                    # Extract the actual content from the result
+                    model_output = result.get("output", observation)
+                    
+                    synthesis_prompt = f"""You are an agricultural advisor helping a farmer choose crops based on soil analysis. Use the model prediction below to provide comprehensive advice.
+
+FARMER'S QUESTION:
+{query}
+
+CROP NUTRIENT RECOMMENDATION MODEL OUTPUT:
+{model_output}
+
+YOUR TASK:
+Provide detailed, practical recommendations based on the soil nutrient analysis. Help the farmer understand their soil health and choose the best crop.
+
+REQUIRED SECTIONS:
+
+1. RECOMMENDED CROP
+- State the top crop with confidence level
+- Explain why this crop matches the soil nutrient profile
+- Mention expected yield potential with current soil conditions
+
+2. SOIL HEALTH ASSESSMENT
+- pH Level: Analyze if it's optimal, acidic, or alkaline and what this means
+- NPK Status: Evaluate Nitrogen, Phosphorus, and Potassium levels (high/medium/low)
+- Micronutrients: Assess key micronutrients (S, Cu, Fe, Mn, Zn, B) status
+- Overall soil fertility rating
+
+3. ALTERNATIVE CROP OPTIONS
+- List 2-3 other suitable crops based on the soil analysis
+- Explain briefly why each is compatible
+
+4. FERTILIZER RECOMMENDATIONS
+- Specific fertilizers needed to optimize soil for the recommended crop
+- Approximate application rates (kg per acre or per hectare)
+- Best timing for fertilizer application (before planting, during growth)
+- Organic vs chemical options
+
+5. SOIL IMPROVEMENT STRATEGY
+- Priority actions to enhance soil health
+- Long-term soil management tips
+- Expected timeline for improvements
+
+FORMATTING: Use markdown with ## for main sections and ### for subsections. Use numbered lists (1., 2., 3.) and bullet points (-) for details. Use **bold** for emphasis. Be specific with measurements. Target 300-400 words."""
+                    
+                    llm_result = self._execute_tool("llm_generation", synthesis_prompt)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM synthesized crop nutrient recommendation", "SUCCESS")
+                        break
+                    else:
+                        final_answer = observation
+                        break
+                
+                # For Soil Moisture Classification, pass results to LLM for detailed synthesis
+                if result.get("success") and tool_to_use == "soil_moisture_classification":
+                    self._log(f"✅ Got soil moisture classification, now calling LLM for synthesis", "INFO")
+                    
+                    # Extract the actual content from the result
+                    model_output = result.get("output", observation)
+                    
+                    synthesis_prompt = f"""You are an irrigation specialist helping a farmer manage soil moisture. Use the sensor analysis below to provide immediate, actionable advice.
+
+FARMER'S QUESTION:
+{query}
+
+SOIL MOISTURE SENSOR ANALYSIS:
+{model_output}
+
+YOUR TASK:
+Provide clear, urgent guidance on irrigation decisions based on the soil moisture classification. Focus on immediate actions the farmer should take.
+
+REQUIRED SECTIONS:
+
+1. CURRENT MOISTURE STATUS
+- State the soil moisture classification (Very Dry / Dry / Wet / Very Wet)
+- Explain what this means for the crops right now
+- Indicate urgency level
+
+2. IRRIGATION DECISION
+- Should the farmer irrigate? YES or NO
+- If YES: How soon? (Immediately / Within 6 hours / Within 24 hours)
+- If NO: When to check again?
+- Approximate water amount needed if applicable
+
+3. WEATHER AND ENVIRONMENTAL FACTORS
+- How the current temperature affects soil moisture and crop water needs
+- Impact of atmospheric pressure and altitude on irrigation requirements
+- Any weather considerations
+
+4. IMMEDIATE ACTION STEPS
+- List 3-4 specific actions the farmer should take right now
+- Be very specific and practical
+- Include timing for each action
+
+5. MONITORING PLAN
+- When to check soil moisture again
+- What sensor readings to look for
+- Signs to watch in the crops
+
+FORMATTING: Use markdown with ## for main sections and ### for subsections. Use numbered lists (1., 2., 3.) and bullet points (-) for details. Use **bold** for emphasis. Be direct and action-focused. Target 200-300 words."""
+                    
+                    llm_result = self._execute_tool("llm_generation", synthesis_prompt)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM synthesized soil moisture classification", "SUCCESS")
+                        break
+                    else:
+                        final_answer = observation
+                        break
+                
+                # For Soil Fertility Classification, pass results to LLM for detailed synthesis
+                if result.get("success") and tool_to_use == "soil_fertility_classification":
+                    self._log(f"✅ Got soil fertility classification, now calling LLM for synthesis", "INFO")
+                    
+                    # Extract the actual content from the result
+                    model_output = result.get("output", observation)
+                    
+                    synthesis_prompt = f"""You are a soil health expert helping a farmer improve their land. Use the comprehensive soil analysis below to provide detailed guidance.
+
+FARMER'S QUESTION:
+{query}
+
+SOIL FERTILITY ANALYSIS:
+{model_output}
+
+YOUR TASK:
+Provide detailed, actionable advice to help the farmer understand and improve their soil fertility. Be specific about nutrients, amendments, and timelines.
+
+REQUIRED SECTIONS:
+
+1. SOIL FERTILITY RATING
+- State the classification (Low / Medium / High Fertility)
+- Explain what this means for crop production and yields
+- Indicate whether immediate action is needed
+
+2. DETAILED NUTRIENT ANALYSIS
+- Major Nutrients: Assess N, P, K levels individually
+- pH Status: Evaluate soil acidity/alkalinity and implications
+- Organic Content: Assess organic matter and what it means
+- Micronutrients: Evaluate S, Zn, Fe, Cu, Mn, B levels
+- Identify specific deficiencies or excesses
+
+3. IMPACT ON CROP YIELDS
+- How the current fertility level affects crop production
+- Expected yield compared to optimal conditions (percentage)
+- Which crops would struggle vs thrive in current conditions
+
+4. COMPREHENSIVE IMPROVEMENT PLAN
+- Priority 1: Most urgent nutrient deficiency to address
+- Priority 2: Secondary improvements needed
+- Priority 3: Long-term soil building strategies
+- Specific amendments with application rates (kg/acre or kg/hectare)
+- Organic options (compost, manure, green manure)
+- Chemical fertilizer options if needed
+
+5. IMPLEMENTATION TIMELINE
+- Immediate actions (this week)
+- Short-term improvements (1-3 months)
+- Long-term strategy (6-12 months)
+- When to expect visible improvements
+- When to retest soil
+
+FORMATTING: Use markdown with ## for main sections and ### for subsections. Use numbered lists (1., 2., 3.) and bullet points (-) for details. Use **bold** for emphasis. Be very specific with measurements and methods. Target 350-450 words."""
+                    
+                    llm_result = self._execute_tool("llm_generation", synthesis_prompt)
+                    tools_used.add("llm_generation")
+                    if llm_result.get("success"):
+                        final_answer = self._format_tool_result(llm_result, "llm_generation")
+                        self._log(f"✅ LLM synthesized soil fertility classification", "SUCCESS")
+                        break
+                    else:
                         final_answer = observation
                         break
                 
@@ -727,6 +1252,10 @@ Answer:"""
             final_answer = self.observations[-1]
         elif not final_answer:
             final_answer = "I apologize, but I couldn't process your request successfully."
+        
+        # Format markdown output - preserve markdown structure with proper spacing
+        final_answer = self._format_markdown_output(final_answer)
+        final_answer = self._final_markdown_cleanup(final_answer)
         
         execution_time = (datetime.now() - start_time).total_seconds()
         
@@ -783,6 +1312,70 @@ Answer:"""
                 return f"Predicted yield for {crop} in {state}: {pred} {unit}"
             else:
                 return f"Error: {result.get('error', 'Prediction failed')}"
+        elif tool_name == "soil_moisture_classification":
+            if result.get("success"):
+                classification = result.get('classification', 'N/A')
+                confidence = result.get('confidence', 0)
+                sensor = result.get('sensor_readings', {})
+                recommendations = result.get('recommendations', [])
+                
+                output = f"Soil Moisture Status: {classification} ({confidence:.1%} confidence)\\n"
+                output += f"Sensor Readings: Temp {sensor.get('temperature', 'N/A')}, "
+                output += f"Pressure {sensor.get('pressure', 'N/A')}, Moisture {sensor.get('soil_moisture_raw', 'N/A')}\\n\\n"
+                output += "Recommendations:\\n" + "\\n".join(recommendations[:5])
+                return output
+            else:
+                return f"Error: {result.get('error', 'Classification failed')}"
+        
+        elif tool_name == "crop_nutrient_recommendation":
+            if result.get("success"):
+                crop = result.get('recommended_crop', 'N/A')
+                confidence = result.get('confidence', 0)
+                top_crops = result.get('top_3_crops', [])
+                recommendations = result.get('recommendations', [])
+                soil_analysis = result.get('soil_analysis', {})
+                
+                output = f"Recommended Crop: {crop.upper()} ({confidence:.1%} confidence)\\n"
+                output += f"Alternatives: {', '.join([c['crop'] for c in top_crops[1:]])}\\n\\n"
+                output += "Soil Analysis:\\n"
+                for key, value in soil_analysis.items():
+                    output += f"- {key}: {value}\\n"
+                output += "\\nRecommendations:\\n" + "\\n".join(recommendations[:6])
+                return output
+            else:
+                return f"Error: {result.get('error', 'Recommendation failed')}"
+        
+        elif tool_name == "crop_climate_recommendation":
+            if result.get("success"):
+                crop = result.get('recommended_crop', 'N/A')
+                confidence = result.get('confidence', 0)
+                top_crops = result.get('top_5_crops', [])
+                climate_analysis = result.get('climate_analysis', {})
+                recommendations = result.get('recommendations', [])
+                
+                output = f"Best Crop for Climate: {crop.upper()} ({confidence:.1%} confidence)\\n"
+                output += f"Top 5 Options: {', '.join([c['crop'] for c in top_crops[:5]])}\\n\\n"
+                output += "Climate Analysis:\\n"
+                for key, value in climate_analysis.items():
+                    output += f"- {key.title()}: {value}\\n"
+                output += "\\nRecommendations:\\n" + "\\n".join(recommendations[:6])
+                return output
+            else:
+                return f"Error: {result.get('error', 'Recommendation failed')}"
+        
+        elif tool_name == "soil_fertility_classification":
+            if result.get("success"):
+                fertility = result.get('fertility_level', 'N/A')
+                confidence = result.get('confidence', 0)
+                deficiencies = result.get('deficiencies', [])
+                recommendations = result.get('recommendations', [])
+                
+                output = f"Soil Fertility Level: {fertility} ({confidence:.1%} confidence)\\n\\n"
+                output += "Deficiencies:\\n" + "\\n".join(deficiencies[:5]) + "\\n\\n"
+                output += "Recommendations:\\n" + "\\n".join(recommendations[:8])
+                return output
+            else:
+                return f"Error: {result.get('error', 'Classification failed')}"
         elif tool_name == "pest_detection":
             if result.get("success"):
                 pred = result.get('top_prediction', 'N/A')

@@ -13,12 +13,16 @@ if str(project_root) not in sys.path:
 
 from src.model_tools.yield_tool import YieldTool
 from src.model_tools.pest_tool import PestTool
-from src.model_tools.weather_tool import WeatherTool
 from src.model_tools.translation_tool import TranslationTool
 from src.model_tools.tavily_tool import TavilyTool
+from src.model_tools.soil_moisture_tool import SoilMoistureTool
+from src.model_tools.crop_nutrient_tool import CropNutrientTool
+from src.model_tools.crop_climate_tool import CropClimateTool
+from src.model_tools.soil_fertility_tool import SoilFertilityTool
 from src.orchestration.rag_engine import RAGEngine
 from src.orchestration.llm_engine import LLMEngine
 from src.orchestration.tools.weather_realtime_tool import weather_realtime_sync, TOOL_METADATA
+from src.knowledge_graph.agri_kg_tool import AgriKGTool
 
 
 class ToolRegistry:
@@ -53,21 +57,48 @@ class ToolRegistry:
             )
             
             self._register_tool(
+                name="soil_moisture_classification",
+                tool=SoilMoistureTool(),
+                description="Classifies soil moisture status from IoT sensor data (temperature, pressure, altitude, soil moisture)",
+                category="prediction",
+                input_type="structured",
+                keywords=["soil moisture", "irrigation", "water", "irrigate", "dry", "wet", "sensor", "IoT"]
+            )
+            
+            self._register_tool(
+                name="crop_nutrient_recommendation",
+                tool=CropNutrientTool(),
+                description="Recommends optimal crops based on detailed soil nutrient analysis (N, P, K, pH, EC, micronutrients)",
+                category="recommendation",
+                input_type="structured",
+                keywords=["crop recommendation", "soil test", "nutrients", "NPK", "soil analysis", "which crop", "best crop for soil", "nutrient levels"]
+            )
+            
+            self._register_tool(
+                name="crop_climate_recommendation",
+                tool=CropClimateTool(),
+                description="Recommends crops based on climate conditions and soil NPK (temperature, humidity, rainfall, NPK, pH)",
+                category="recommendation",
+                input_type="structured",
+                keywords=["climate", "weather", "crop for climate", "temperature", "humidity", "rainfall", "season", "best crop"]
+            )
+            
+            self._register_tool(
+                name="soil_fertility_classification",
+                tool=SoilFertilityTool(),
+                description="Classifies soil fertility level (Low/Medium/High) based on comprehensive nutrient analysis",
+                category="prediction",
+                input_type="structured",
+                keywords=["soil fertility", "soil quality", "fertility level", "soil health", "soil rating"]
+            )
+            
+            self._register_tool(
                 name="pest_detection",
                 tool=PestTool(),
                 description="Detects plant diseases and pests from leaf images",
                 category="prediction",
                 input_type="image",
                 keywords=["pest", "disease", "plant health", "leaf", "infection", "image"]
-            )
-            
-            self._register_tool(
-                name="weather_prediction",
-                tool=WeatherTool(),
-                description="Predicts weather patterns and impacts on agriculture",
-                category="prediction",
-                input_type="structured",
-                keywords=["weather", "temperature", "rainfall", "climate", "drought", "flood"]
             )
             
             # Register translation tool
@@ -107,14 +138,27 @@ class ToolRegistry:
                          "brand", "company", "manufacturer", "product"]
             )
             
-            # Register RAG engine
+            # Register RAG engine with correct paths
             self._register_tool(
                 name="rag_retrieval",
-                tool=RAGEngine(),
+                tool=RAGEngine(
+                    vectorstore_path="vectorstore/knowledge_base",
+                    collection_name="knowledge_base"
+                ),
                 description="Retrieves relevant agricultural knowledge from document database",
                 category="knowledge",
                 input_type="text",
                 keywords=["retrieve", "search", "knowledge", "document", "information"]
+            )
+            
+            # Register AgriKG (Knowledge Graph)
+            self._register_tool(
+                name="agri_kg_query",
+                tool=AgriKGTool(),
+                description="Query Agriculture Knowledge Graph for structured relationships between crops, diseases, pests, fertilizers, and soil",
+                category="knowledge",
+                input_type="text",
+                keywords=["disease", "pest", "fertilizer", "soil", "crop", "affect", "relationship", "treatment", "control"]
             )
             
             # Register LLM engine

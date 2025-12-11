@@ -36,3 +36,105 @@
     @apply bg-gray-600;
   }
 }
+
+/* Custom Markdown Prose Styles for Chat Messages */
+@layer components {
+  .prose-chatbot {
+    @apply text-gray-100;
+  }
+  
+  .prose-chatbot p {
+    @apply mb-3 leading-relaxed;
+  }
+  
+  .prose-chatbot p:last-child {
+    @apply mb-0;
+  }
+  
+  .prose-chatbot > *:last-child {
+    @apply mb-0;
+  }
+  
+  .prose-chatbot ul,
+  .prose-chatbot ol {
+    @apply my-4 space-y-2;
+  }
+  
+  .prose-chatbot ul {
+    @apply list-disc ml-6;
+  }
+  
+  .prose-chatbot ul > li {
+    @apply mb-2 leading-relaxed;
+  }
+  
+  .prose-chatbot ol {
+    @apply list-decimal ml-6;
+  }
+  
+  .prose-chatbot ol > li {
+    @apply mb-3 pl-2 leading-relaxed;
+  }
+  
+  .prose-chatbot li > ul,
+  .prose-chatbot li > ol {
+    @apply mt-2 mb-2 ml-4;
+  }
+  
+  /* Nested bullets under numbered items */
+  .prose-chatbot ol > li > ul {
+    @apply mt-2 mb-2;
+  }
+  
+  .prose-chatbot ol > li > ul > li {
+    @apply mb-1.5;
+  }
+  
+  .prose-chatbot strong {
+    @apply font-bold text-gray-100;
+  }
+  
+  .prose-chatbot h1,
+  .prose-chatbot h2,
+  .prose-chatbot h3 {
+    @apply font-bold text-gray-100 mb-3 mt-5;
+  }
+  
+  .prose-chatbot h1:first-child,
+  .prose-chatbot h2:first-child,
+  .prose-chatbot h3:first-child {
+    @apply mt-0;
+  }
+  
+  .prose-chatbot code {
+    @apply bg-gray-900/80 px-1.5 py-0.5 rounded text-green-400 text-xs;
+  }
+  
+  .prose-chatbot pre {
+    @apply bg-gray-900/80 p-3 rounded my-3 overflow-x-auto;
+  }
+  
+  .prose-chatbot pre code {
+    @apply bg-transparent p-0;
+  }
+  
+  .prose-chatbot blockquote {
+    @apply border-l-4 border-green-700 pl-4 italic my-3 text-gray-300;
+  }
+  
+  /* Ensure proper spacing between list items and following text */
+  .prose-chatbot ol + p,
+  .prose-chatbot ul + p {
+    @apply mt-3;
+  }
+  
+  /* Ensure proper spacing between paragraphs and lists */
+  .prose-chatbot p + ol,
+  .prose-chatbot p + ul {
+    @apply mt-3;
+  }
+  
+  .prose-chatbot a {
+    @apply text-green-400 underline hover:text-green-300;
+  }
+}
